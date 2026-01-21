@@ -201,15 +201,72 @@ function Select-BestEntityFromResponse {
 
     if (-not $candidates -or $candidates.Count -eq 0) { return $null }
 
-    # Prefer exact (case-insensitive) match, then highest score
-    $exact = $candidates | Where-Object { 
-        $_.RegisteredName -and ($_.RegisteredName -eq $TargetName -or $_.RegisteredName -like "*$TargetName*")
-    }
-    if ($exact) { 
-        return $exact | Sort-Object Score -Descending | Select-Object -First 1 
+    # Normalize target name for comparison
+    $targetNorm = $TargetName.Trim().ToUpper()
+
+    # Score each candidate for matching quality
+    foreach ($c in $candidates) {
+        $nameNorm = if ($c.RegisteredName) { $c.RegisteredName.Trim().ToUpper() } else { "" }
+        $matchScore = 0
+
+        # PRIORITY 1: Exact name match (highest priority)
+        if ($nameNorm -eq $targetNorm) {
+            $matchScore = 1000
+        }
+        # PRIORITY 2: Name starts with target or target starts with name
+        elseif ($nameNorm.StartsWith($targetNorm) -or $targetNorm.StartsWith($nameNorm)) {
+            $matchScore = 500
+        }
+        # PRIORITY 3: Name contains full target name
+        elseif ($nameNorm -like "*$targetNorm*") {
+            $matchScore = 300
+        }
+        # PRIORITY 4: Target contains full registered name (dangerous - can match individuals)
+        elseif ($targetNorm -like "*$nameNorm*" -and $nameNorm.Length -gt 5) {
+            $matchScore = 100
+        }
+
+        # BONUS: Prefer Active businesses (+200)
+        if ($c.Status -eq 'Active') {
+            $matchScore += 200
+        }
+
+        # BONUS: Prefer companies over individuals (+150)
+        # Individuals typically have entity types like "Individual/Sole Trader" or names in "SURNAME, FIRSTNAME" format
+        $isIndividual = ($c.EntityType -match 'Individual|Sole Trader') -or
+                        ($c.RegisteredName -match '^[A-Z]+,\s+[A-Z]+')
+        if (-not $isIndividual) {
+            $matchScore += 150
+        }
+
+        # BONUS: Prefer Pty Ltd companies when searching for Pty Ltd (+100)
+        if ($targetNorm -match 'PTY\s*LTD' -and $nameNorm -match 'PTY\s*LTD') {
+            $matchScore += 100
+        }
+
+        # BONUS: Prefer VIC-based businesses for VicRoads data (+50)
+        if ($c.State -eq 'VIC') {
+            $matchScore += 50
+        }
+
+        # Add the API score (typically 0-100)
+        $matchScore += [int]$c.Score
+
+        # Store the calculated match score
+        $c | Add-Member -NotePropertyName 'MatchScore' -NotePropertyValue $matchScore -Force
     }
 
-    return $candidates | Sort-Object Score -Descending | Select-Object -First 1
+    # Sort by MatchScore descending and return the best match
+    $sorted = $candidates | Sort-Object MatchScore -Descending
+
+    # Only return if we have a reasonable match (MatchScore > 200 means at least active or some name match)
+    $best = $sorted | Select-Object -First 1
+    if ($best.MatchScore -ge 200) {
+        return $best
+    }
+
+    # If no good match, return null rather than a bad match
+    return $null
 }
 
 function Get-ABNDetails {
