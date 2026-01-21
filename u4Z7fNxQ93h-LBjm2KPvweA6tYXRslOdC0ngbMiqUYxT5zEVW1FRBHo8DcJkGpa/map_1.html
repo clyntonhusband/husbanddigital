@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sydney Motorway Network Status</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #1a1a2e;
+            color: #fff;
+        }
+        
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .dashboard-header h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            color: #4fbdba;
+        }
+        
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        
+        .legend-line {
+            width: 30px;
+            height: 6px;
+            border-radius: 3px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+        
+        .status-normal { background-color: #4ade80; }
+        .status-moderate { background-color: #fbbf24; }
+        .status-heavy { background-color: #f87171; }
+        .status-closed { background-color: #6b7280; }
+        
+        #motorway-map {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            background-color: #0f172a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .motorway-line {
+            position: absolute;
+            background-color: #666;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .motorway-line:hover {
+            opacity: 0.8;
+            transform: scale(1.05);
+        }
+        
+        .motorway-node {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background-color: #fff;
+            border: 3px solid #333;
+            border-radius: 50%;
+            z-index: 10;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .motorway-node:hover {
+            transform: scale(1.3);
+        }
+        
+        .motorway-label {
+            position: absolute;
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+            background-color: rgba(0,0,0,0.7);
+            padding: 2px 6px;
+            border-radius: 3px;
+            z-index: 15;
+            pointer-events: none;
+        }
+        
+        .interchange-label {
+            position: absolute;
+            font-size: 11px;
+            color: #e0e0e0;
+            z-index: 5;
+            text-align: center;
+            pointer-events: none;
+        }
+        
+        /* Motorway Colors */
+        .m1 { background-color: #ef4444; }
+        .m2 { background-color: #f59e0b; }
+        .m4 { background-color: #3b82f6; }
+        .m5 { background-color: #10b981; }
+        .m7 { background-color: #8b5cf6; }
+        .m8 { background-color: #ec4899; }
+        .a1 { background-color: #14b8a6; }
+        .a3 { background-color: #f97316; }
+        .a4 { background-color: #06b6d4; }
+        .a8 { background-color: #84cc16; }
+        
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0,0,0,0.9);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .info-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #0f172a;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .info-panel h3 {
+            margin: 0 0 10px 0;
+            color: #4fbdba;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .info-item {
+            background-color: #1e293b;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        
+        .info-item strong {
+            color: #94a3b8;
+            font-size: 12px;
+        }
+        
+        .info-item p {
+            margin: 5px 0 0 0;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <h1>Sydney Motorway Network Status</h1>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-line m1"></div>
+                    <span>M1 Pacific</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line m2"></div>
+                    <span>M2 Hills</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line m4"></div>
+                    <span>M4 Western</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line m5"></div>
+                    <span>M5 South West</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line m7"></div>
+                    <span>M7 Westlink</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line m8"></div>
+                    <span>M8 WestConnex</span>
+                </div>
+            </div>
+            <div class="legend">
+                <div class="legend-item">
+                    <span class="status-indicator status-normal"></span>
+                    <span>Normal Flow</span>
+                </div>
+                <div class="legend-item">
+                    <span class="status-indicator status-moderate"></span>
+                    <span>Moderate Traffic</span>
+                </div>
+                <div class="legend-item">
+                    <span class="status-indicator status-heavy"></span>
+                    <span>Heavy Traffic</span>
+                </div>
+                <div class="legend-item">
+                    <span class="status-indicator status-closed"></span>
+                    <span>Closed/Incident</span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="motorway-map">
+            <!-- M1 Pacific Motorway (North-South) -->
+            <div class="motorway-line m1" style="width: 8px; height: 400px; left: 700px; top: 50px;" data-road="M1" data-section="North"></div>
+            <div class="motorway-label" style="left: 715px; top: 60px;">M1</div>
+            
+            <!-- M2 Hills Motorway (East-West) -->
+            <div class="motorway-line m2" style="width: 300px; height: 8px; left: 400px; top: 180px;" data-road="M2" data-section="Hills"></div>
+            <div class="motorway-label" style="left: 530px; top: 160px;">M2</div>
+            
+            <!-- M4 Western Motorway (East-West) -->
+            <div class="motorway-line m4" style="width: 500px; height: 8px; left: 200px; top: 280px;" data-road="M4" data-section="Western"></div>
+            <div class="motorway-label" style="left: 420px; top: 260px;">M4</div>
+            
+            <!-- M5 South Western Motorway (East-West) -->
+            <div class="motorway-line m5" style="width: 450px; height: 8px; left: 250px; top: 380px;" data-road="M5" data-section="South West"></div>
+            <div class="motorway-label" style="left: 450px; top: 360px;">M5</div>
+            
+            <!-- M7 Westlink (North-South) -->
+            <div class="motorway-line m7" style="width: 8px; height: 250px; left: 200px; top: 180px;" data-road="M7" data-section="Westlink"></div>
+            <div class="motorway-label" style="left: 215px; top: 300px;">M7</div>
+            
+            <!-- M8 WestConnex -->
+            <div class="motorway-line m8" style="width: 250px; height: 8px; left: 450px; top: 330px;" data-road="M8" data-section="WestConnex"></div>
+            <div class="motorway-label" style="left: 550px; top: 310px;">M8</div>
+            
+            <!-- A1 Princes Highway -->
+            <div class="motorway-line a1" style="width: 8px; height: 150px; left: 700px; top: 380px;" data-road="A1" data-section="Princes"></div>
+            <div class="motorway-label" style="left: 715px; top: 450px;">A1</div>
+            
+            <!-- A3 King Georges Road -->
+            <div class="motorway-line a3" style="width: 8px; height: 200px; left: 600px; top: 280px;" data-road="A3" data-section="King Georges"></div>
+            <div class="motorway-label" style="left: 615px; top: 370px;">A3</div>
+            
+            <!-- A4 Parramatta Road -->
+            <div class="motorway-line a4" style="width: 350px; height: 8px; left: 350px; top: 230px;" data-road="A4" data-section="Parramatta"></div>
+            <div class="motorway-label" style="left: 500px; top: 210px;">A4</div>
+            
+            <!-- A8 City West Link -->
+            <div class="motorway-line a8" style="width: 150px; height: 8px; left: 550px; top: 280px;" data-road="A8" data-section="City West"></div>
+            <div class="motorway-label" style="left: 600px; top: 295px;">A8</div>
+            
+            <!-- Major Interchanges -->
+            <div class="motorway-node" style="left: 196px; top: 176px;" data-interchange="M7/M2"></div>
+            <div class="interchange-label" style="left: 220px; top: 170px;">M7/M2</div>
+            
+            <div class="motorway-node" style="left: 196px; top: 276px;" data-interchange="M7/M4"></div>
+            <div class="interchange-label" style="left: 220px; top: 270px;">M7/M4</div>
+            
+            <div class="motorway-node" style="left: 196px; top: 376px;" data-interchange="M7/M5"></div>
+            <div class="interchange-label" style="left: 220px; top: 370px;">M7/M5</div>
+            
+            <div class="motorway-node" style="left: 696px; top: 176px;" data-interchange="M1/M2"></div>
+            <div class="interchange-label" style="left: 720px; top: 170px;">M1/M2</div>
+            
+            <div class="motorway-node" style="left: 696px; top: 276px;" data-interchange="M1/M4"></div>
+            <div class="interchange-label" style="left: 720px; top: 270px;">M1/M4</div>
+            
+            <div class="motorway-node" style="left: 696px; top: 326px;" data-interchange="M1/M8"></div>
+            <div class="interchange-label" style="left: 720px; top: 320px;">M1/M8</div>
+            
+            <div class="motorway-node" style="left: 696px; top: 376px;" data-interchange="M1/M5"></div>
+            <div class="interchange-label" style="left: 720px; top: 370px;">M1/M5</div>
+            
+            <div class="motorway-node" style="left: 596px; top: 276px;" data-interchange="A3/M4"></div>
+            <div class="interchange-label" style="left: 540px; top: 270px;">A3/M4</div>
+            
+            <div class="tooltip" id="tooltip"></div>
+        </div>
+        
+        <div class="info-panel" id="infoPanel">
+            <h3>Road Information</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <strong>Road</strong>
+                    <p id="infoRoad">-</p>
+                </div>
+                <div class="info-item">
+                    <strong>Status</strong>
+                    <p id="infoStatus">-</p>
+                </div>
+                <div class="info-item">
+                    <strong>Average Speed</strong>
+                    <p id="infoSpeed">-</p>
+                </div>
+                <div class="info-item">
+                    <strong>Travel Time</strong>
+                    <p id="infoTime">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Simulated road status data
+        const roadStatus = {
+            'M1': { status: 'normal', speed: 95, travelTime: '12 min', incidents: 0 },
+            'M2': { status: 'moderate', speed: 65, travelTime: '18 min', incidents: 1 },
+            'M4': { status: 'heavy', speed: 40, travelTime: '35 min', incidents: 2 },
+            'M5': { status: 'moderate', speed: 70, travelTime: '22 min', incidents: 1 },
+            'M7': { status: 'normal', speed: 90, travelTime: '15 min', incidents: 0 },
+            'M8': { status: 'normal', speed: 85, travelTime: '10 min', incidents: 0 },
+            'A1': { status: 'moderate', speed: 55, travelTime: '20 min', incidents: 1 },
+            'A3': { status: 'heavy', speed: 35, travelTime: '28 min', incidents: 2 },
+            'A4': { status: 'heavy', speed: 30, travelTime: '40 min', incidents: 3 },
+            'A8': { status: 'moderate', speed: 60, travelTime: '15 min', incidents: 1 }
+        };
+        
+        // Apply status indicators to roads
+        function updateRoadStatus() {
+            document.querySelectorAll('.motorway-line').forEach(line => {
+                const road = line.getAttribute('data-road');
+                if (roadStatus[road]) {
+                    const status = roadStatus[road].status;
+                    // Add status indicator
+                    const indicator = document.createElement('div');
+                    indicator.className = `status-indicator status-${status}`;
+                    indicator.style.position = 'absolute';
+                    indicator.style.right = '-20px';
+                    indicator.style.top = '50%';
+                    indicator.style.transform = 'translateY(-50%)';
+                    
+                    // For horizontal lines, adjust position
+                    if (parseInt(line.style.width) > parseInt(line.style.height)) {
+                        indicator.style.right = 'auto';
+                        indicator.style.left = '50%';
+                        indicator.style.top = '-20px';
+                        indicator.style.transform = 'translateX(-50%)';
+                    }
+                    
+                    line.appendChild(indicator);
+                }
+            });
+        }
+        
+        // Tooltip functionality
+        const tooltip = document.getElementById('tooltip');
+        
+        document.querySelectorAll('.motorway-line').forEach(line => {
+            line.addEventListener('mouseenter', (e) => {
+                const road = e.target.getAttribute('data-road');
+                const status = roadStatus[road];
+                if (status) {
+                    tooltip.innerHTML = `
+                        <strong>${road}</strong><br>
+                        Status: ${status.status}<br>
+                        Speed: ${status.speed} km/h<br>
+                        ${status.incidents > 0 ? `Incidents: ${status.incidents}` : 'No incidents'}
+                    `;
+                    tooltip.style.opacity = '1';
+                }
+            });
+            
+            line.addEventListener('mousemove', (e) => {
+                tooltip.style.left = e.pageX + 10 + 'px';
+                tooltip.style.top = e.pageY + 10 + 'px';
+            });
+            
+            line.addEventListener('mouseleave', () => {
+                tooltip.style.opacity = '0';
+            });
+            
+            line.addEventListener('click', (e) => {
+                const road = e.target.getAttribute('data-road');
+                showInfoPanel(road);
+            });
+        });
+        
+        // Interchange tooltips
+        document.querySelectorAll('.motorway-node').forEach(node => {
+            node.addEventListener('mouseenter', (e) => {
+                const interchange = e.target.getAttribute('data-interchange');
+                tooltip.innerHTML = `<strong>Interchange: ${interchange}</strong>`;
+                tooltip.style.opacity = '1';
+            });
+            
+            node.addEventListener('mousemove', (e) => {
+                tooltip.style.left = e.pageX + 10 + 'px';
+                tooltip.style.top = e.pageY + 10 + 'px';
+            });
+            
+            node.addEventListener('mouseleave', () => {
+                tooltip.style.opacity = '0';
+            });
+        });
+        
+        // Info panel
+        function showInfoPanel(road) {
+            const panel = document.getElementById('infoPanel');
+            const status = roadStatus[road];
+            
+            if (status) {
+                document.getElementById('infoRoad').textContent = road;
+                document.getElementById('infoStatus').innerHTML = `<span class="status-indicator status-${status.status}"></span> ${status.status.charAt(0).toUpperCase() + status.status.slice(1)}`;
+                document.getElementById('infoSpeed').textContent = `${status.speed} km/h`;
+                document.getElementById('infoTime').textContent = status.travelTime;
+                
+                panel.style.display = 'block';
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+        
+        // Simulate real-time updates
+        function simulateStatusUpdate() {
+            const roads = Object.keys(roadStatus);
+            const randomRoad = roads[Math.floor(Math.random() * roads.length)];
+            const statuses = ['normal', 'moderate', 'heavy'];
+            const newStatus = statuses[Math.floor(Math.random() * statuses.length)];
+            
+            roadStatus[randomRoad].status = newStatus;
+            roadStatus[randomRoad].speed = newStatus === 'normal' ? 80 + Math.floor(Math.random() * 20) :
+                                          newStatus === 'moderate' ? 50 + Math.floor(Math.random() * 20) :
+                                          30 + Math.floor(Math.random() * 20);
+            
+            // Update visual indicators
+            document.querySelectorAll('.motorway-line').forEach(line => {
+                if (line.getAttribute('data-road') === randomRoad) {
+                    const indicator = line.querySelector('.status-indicator');
+                    if (indicator) {
+                        indicator.className = `status-indicator status-${newStatus}`;
+                    }
+                }
+            });
+        }
+        
+        // Initialize
+        updateRoadStatus();
+        
+        // Simulate updates every 10 seconds
+        setInterval(simulateStatusUpdate, 10000);
+        
+        // Add animation to status indicators
+        setInterval(() => {
+            document.querySelectorAll('.status-indicator').forEach(indicator => {
+                indicator.style.opacity = indicator.style.opacity === '0.5' ? '1' : '0.5';
+            });
+        }, 1500);
+    </script>
+</body>
+</html>

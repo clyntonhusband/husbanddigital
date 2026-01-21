@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VicRoads Contractors Database</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #17E09C;
+            --secondary: #00C0FF;
+            --accent: #0083FF;
+            --success: #4CAF50;
+            --warning: #ff9800;
+            --danger: #f44336;
+            --dark: #1E1E1E;
+            --light: #ecf0f1;
+            --border: #ddd;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+
+        .file-picker {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid var(--border);
+            text-align: center;
+        }
+
+        .file-picker h3 {
+            margin-bottom: 20px;
+            color: var(--dark);
+        }
+
+        .file-input-wrapper {
+            display: inline-block;
+            position: relative;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 12px 30px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 10px rgba(23,224,156,0.3);
+        }
+
+        .file-input-label:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,192,255,0.3);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #666;
+            display: none;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px 0;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 15px 50px 15px 20px;
+            font-size: 16px;
+            border: 2px solid var(--border);
+            border-radius: 50px;
+            transition: all 0.3s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(23,224,156,0.1);
+        }
+
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .filter-header h4 {
+            margin: 0;
+            color: var(--accent);
+        }
+
+        .toggle-filters-btn {
+            padding: 6px 15px;
+            background: var(--secondary);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .toggle-filters-btn:hover {
+            background: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .filters-container {
+            transition: max-height 0.3s ease;
+            overflow: hidden;
+            max-height: 1000px;
+        }
+
+        .filters-container.collapsed {
+            max-height: 0;
+        }
+
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: var(--dark);
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group select {
+            padding: 10px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .preq-section {
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .preq-section-title {
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        .preq-section-title:hover {
+            color: var(--primary);
+        }
+
+        .collapse-icon {
+            transition: transform 0.3s;
+            font-size: 1.2em;
+        }
+
+        .preq-section.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .preq-section.collapsed .preq-tags {
+            display: none;
+        }
+
+        .preq-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+            padding: 5px;
+        }
+
+        .preq-tag {
+            padding: 6px 12px;
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.85em;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .preq-tag:hover {
+            background: var(--light);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .preq-tag.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            font-weight: 600;
+        }
+
+        .preq-tag-count {
+            background: #e0e0e0;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 5px;
+            font-size: 0.85em;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            padding: 20px;
+            background: white;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-table {
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }
+
+        th {
+            background: var(--accent);
+            color: white;
+            padding: 10px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        th:hover {
+            background: var(--secondary);
+        }
+
+        td {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .company-name {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .company-name a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .company-name a:hover {
+            color: var(--primary);
+            text-decoration: underline;
+        }
+
+        .abn-link {
+            color: var(--secondary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .abn-link:hover {
+            text-decoration: underline;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-notfound {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .years-badge {
+            background: var(--primary);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+
+        .preq-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: var(--primary);
+            color: white;
+            border-radius: 4px;
+            font-size: 0.7em;
+            margin: 1px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .preq-badge-traffic {
+            background: #ff6b6b;
+        }
+
+        .preq-badge-maintenance {
+            background: #51cf66;
+        }
+
+        .preq-badge-road {
+            background: #9775fa;
+        }
+
+        .preq-badge-bridge {
+            background: #fd7e14;
+        }
+
+        .preq-badge-financial {
+            background: #20c997;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+
+        .export-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 15px 25px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(23,224,156,0.3);
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+
+        .export-btn:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,192,255,0.4);
+        }
+
+        .clear-all-filters {
+            padding: 8px 20px;
+            background: var(--warning);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .clear-all-filters:hover {
+            background: #e68900;
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .filters {
+                grid-template-columns: 1fr;
+            }
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏗️ VicRoads Prequalified Contractors</h1>
+            <p>Complete Database with ABN Verification</p>
+        </div>
+
+        <div class="file-picker" id="filePicker">
+            <h3>📁 Select CSV File to Load</h3>
+            <div class="file-input-wrapper">
+                <label for="fileInput" class="file-input-label">
+                    Choose CSV File
+                </label>
+                <input type="file" id="fileInput" accept=".csv">
+            </div>
+            <div class="file-info" id="fileInfo"></div>
+            <p style="margin-top: 20px; color: #666; font-size: 0.9em;">
+                Or it will auto-load from VicRoads_Data folder if served via web server
+            </p>
+        </div>
+
+        <div class="loading" id="loadingSection">
+            <h3>⏳ Loading Data...</h3>
+            <div class="loading-spinner"></div>
+            <p>Processing CSV file...</p>
+            <div id="loadStatus" style="margin-top: 15px; color: #666; font-size: 0.9em;"></div>
+        </div>
+
+        <div id="mainContent" style="display: none;">
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalCompanies">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="withABN">0</div>
+                    <div class="stat-label">With ABN</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="activeABN">0</div>
+                    <div class="stat-label">Active</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="inactiveABN">0</div>
+                    <div class="stat-label">Inactive</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="filteredCompanies">0</div>
+                    <div class="stat-label">Filtered</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="totalCategories">0</div>
+                    <div class="stat-label">Categories</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="🔍 Search company name, ABN, email, categories, location...">
+                </div>
+
+                <div class="filter-header">
+                    <h4>🎯 Filters</h4>
+                    <button class="toggle-filters-btn" id="toggleFilters">
+                        Collapse Filters
+                    </button>
+                </div>
+
+                <div class="filters-container" id="filtersContainer">
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label>Letter</label>
+                            <select id="letterFilter">
+                                <option value="">All Letters</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>ABN Status</label>
+                            <select id="abnStatusFilter">
+                                <option value="">All</option>
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                                <option value="Not Found">Not Found</option>
+                                <option value="no-abn">No ABN</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Years Active</label>
+                            <select id="yearsFilter">
+                                <option value="">All</option>
+                                <option value="0-5">0-5 years</option>
+                                <option value="5-10">5-10 years</option>
+                                <option value="10-20">10-20 years</option>
+                                <option value="20+">20+ years</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Has Email</label>
+                            <select id="emailFilter">
+                                <option value="">All</option>
+                                <option value="yes">With Email</option>
+                                <option value="no">No Email</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="preq-filter">
+                        <h4>🎯 Filter by Prequalification Categories</h4>
+                        <div id="preqSections"></div>
+                        <button class="clear-all-filters" id="clearAllFilters" style="display: none; margin-top: 10px;">
+                            Clear All Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('Firm_')">Company ↕</th>
+                            <th onclick="sortTable('ABN_Found')">ABN ↕</th>
+                            <th onclick="sortTable('ABNStatus')">Status ↕</th>
+                            <th onclick="sortTable('YearsInOperation')">Years ↕</th>
+                            <th>Contact</th>
+                            <th onclick="sortTable('Postcode')">Location ↕</th>
+                            <th>Categories</th>
+                            <th onclick="sortTable('Letter')">Letter ↕</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+                <div id="noResults" class="no-results" style="display: none;">
+                    <h3>No results found</h3>
+                    <p>Try adjusting your search or filters</p>
+                </div>
+            </div>
+        </div>
+
+        <button class="export-btn" id="exportBtn" style="display: none;" onclick="exportResults()">
+            📥 Export
+        </button>
+    </div>
+
+    <script>
+        let allData = [];
+        let filteredData = [];
+        let activePreqFilters = new Set();
+        let allCategories = new Map();
+        let categoryFields = [];
+        let sortField = '';
+        let sortDirection = 1;
+
+        // Auto-load on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            // Set up file input handler
+            document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+            
+            // Try auto-loading if served via web server
+            tryAutoLoad();
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const fileInfo = document.getElementById('fileInfo');
+            fileInfo.style.display = 'block';
+            fileInfo.innerHTML = `Selected: ${file.name} (${(file.size/1024).toFixed(2)} KB)`;
+            
+            document.getElementById('loadingSection').style.display = 'block';
+            document.getElementById('filePicker').style.display = 'none';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const csvText = e.target.result;
+                allData = parseCSV(csvText);
+                initializeApp();
+            };
+            reader.readAsText(file);
+        }
+
+        async function tryAutoLoad() {
+            // Try various path combinations for VicRoads_Data folder
+            const filePaths = [
+                './VicRoads_Data/All_Companies_ABN_Enriched.csv',
+                'VicRoads_Data/All_Companies_ABN_Enriched.csv',
+                '/VicRoads_Data/All_Companies_ABN_Enriched.csv',
+                './VicRoads_Data/All_Companies.csv',
+                'VicRoads_Data/All_Companies.csv',
+                '/VicRoads_Data/All_Companies.csv'
+            ];
+
+            for (const path of filePaths) {
+                try {
+                    const response = await fetch(path);
+                    if (response.ok) {
+                        document.getElementById('filePicker').style.display = 'none';
+                        document.getElementById('loadingSection').style.display = 'block';
+                        document.getElementById('loadStatus').textContent = `Loading from ${path}...`;
+                        
+                        const csvText = await response.text();
+                        allData = parseCSV(csvText);
+                        
+                        setTimeout(() => {
+                            document.getElementById('loadingSection').style.display = 'none';
+                            initializeApp();
+                        }, 500);
+                        return;
+                    }
+                } catch (error) {
+                    // Continue trying other paths
+                }
+            }
+            
+            // If auto-load fails, just show the file picker
+            console.log('Auto-load failed, showing file picker');
+        }
+
+        function parseCSV(csv) {
+            const lines = csv.split('\n');
+            const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+            const data = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i].trim()) {
+                    const values = [];
+                    let current = '';
+                    let inQuotes = false;
+                    
+                    for (let char of lines[i]) {
+                        if (char === '"') {
+                            inQuotes = !inQuotes;
+                        } else if (char === ',' && !inQuotes) {
+                            values.push(current.trim());
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    values.push(current.trim());
+
+                    const row = {};
+                    headers.forEach((header, index) => {
+                        row[header] = values[index] || '';
+                    });
+                    data.push(row);
+                }
+            }
+            return data;
+        }
+
+        function initializeApp() {
+            document.getElementById('mainContent').style.display = 'block';
+            document.getElementById('exportBtn').style.display = 'block';
+            
+            discoverCategoryFields();
+            extractAllCategories();
+            createFilterSections();
+            populateFilters();
+            updateStats();
+            applyFilters();
+            
+            // Event listeners
+            document.getElementById('searchInput').addEventListener('input', debounce(applyFilters, 300));
+            document.getElementById('letterFilter').addEventListener('change', applyFilters);
+            document.getElementById('abnStatusFilter').addEventListener('change', applyFilters);
+            document.getElementById('yearsFilter').addEventListener('change', applyFilters);
+            document.getElementById('emailFilter').addEventListener('change', applyFilters);
+            document.getElementById('clearAllFilters').addEventListener('click', () => {
+                activePreqFilters.clear();
+                document.querySelectorAll('.preq-tag').forEach(tag => tag.classList.remove('active'));
+                document.getElementById('clearAllFilters').style.display = 'none';
+                applyFilters();
+            });
+            
+            // Toggle filters collapse
+            document.getElementById('toggleFilters').addEventListener('click', function() {
+                const filtersContainer = document.getElementById('filtersContainer');
+                filtersContainer.classList.toggle('collapsed');
+                this.textContent = filtersContainer.classList.contains('collapsed') 
+                    ? 'Expand Filters' 
+                    : 'Collapse Filters';
+            });
+        }
+
+        function discoverCategoryFields() {
+            categoryFields = [];
+            const possibleFields = [
+                'PrequalificationCategories',
+                'Traffic_Management_Services__contract__Groups',
+                'Traffic_Control_Systems_Supply___Maintenance__a',
+                'Maintenance_and_General_Works__Group',
+                'Road_and_Bridge_Construction_Group',
+                'Maintenance',
+                'Categories'
+            ];
+            
+            allData.forEach(company => {
+                Object.keys(company).forEach(key => {
+                    const value = company[key] || '';
+                    // Check if field contains category-like data
+                    if ((value.includes('Categories:') || 
+                         value.match(/\b[A-Z]+\d*/g) ||
+                         value.match(/\b(M\d|R\d|B\d|F\d+)/g) ||
+                         possibleFields.some(f => key.includes(f))) && 
+                        !categoryFields.includes(key)) {
+                        categoryFields.push(key);
+                    }
+                });
+            });
+            
+            console.log('Category fields found:', categoryFields);
+        }
+
+        function extractAllCategories() {
+            allCategories.clear();
+            
+            allData.forEach(company => {
+                const companyCategories = new Set();
+                
+                categoryFields.forEach(field => {
+                    const value = company[field] || '';
+                    if (!value) return;
+                    
+                    // Clean and extract categories
+                    const cleanValue = value.replace(/Categories:\s*/g, '').replace(/Levels:\s*/g, '');
+                    
+                    // Multiple patterns to catch all variations
+                    const patterns = [
+                        /\b([A-Z]+\d+(?:-[A-Z]+)?)\b/g,     // R3, F150, M2-BW
+                        /\b(SCTV|SSLC|STCE|STS|SVDL)\b/g,   // Pure letter codes
+                        /\b([A-Z]+)\s+(\d+)\b/g,            // STCE 1, STS 2 (with space)
+                        /\b(M\d+(?:-[A-Z]+)?)\b/g,          // M1, M2-BW
+                        /\b(R\d+)\b/g,                       // R1, R2, R3 (Road Construction)
+                        /\b(B\d+)\b/g,                       // B1, B2, B3 (Bridge Construction)
+                        /\b(F\d+\+?)\b/g                     // F150, F150+ (Financial)
+                    ];
+                    
+                    patterns.forEach(pattern => {
+                        const matches = [...cleanValue.matchAll(pattern)];
+                        matches.forEach(match => {
+                            let cat = match[0];
+                            // Normalize spaces (STCE 2 -> STCE2)
+                            cat = cat.replace(/\s+(\d+)/, '$1');
+                            if (cat && cat.length > 1) {
+                                companyCategories.add(cat);
+                            }
+                        });
+                    });
+                });
+                
+                companyCategories.forEach(cat => {
+                    allCategories.set(cat, (allCategories.get(cat) || 0) + 1);
+                });
+            });
+            
+            console.log('Extracted categories:', Array.from(allCategories.keys()));
+        }
+
+        function createFilterSections() {
+            const container = document.getElementById('preqSections');
+            container.innerHTML = '';
+            
+            // Group categories
+            const trafficCats = [];
+            const maintenanceCats = [];
+            const roadCats = [];
+            const bridgeCats = [];
+            const financialCats = [];
+            const generalCats = [];
+            
+            allCategories.forEach((count, cat) => {
+                if (cat.startsWith('S')) {
+                    trafficCats.push([cat, count]);
+                } else if (cat.startsWith('M')) {
+                    maintenanceCats.push([cat, count]);
+                } else if (cat.startsWith('R')) {
+                    roadCats.push([cat, count]);
+                } else if (cat.startsWith('B')) {
+                    bridgeCats.push([cat, count]);
+                } else if (cat.startsWith('F')) {
+                    financialCats.push([cat, count]);
+                } else {
+                    generalCats.push([cat, count]);
+                }
+            });
+            
+            // Create sections
+            if (trafficCats.length > 0) {
+                createSection('🚦 Traffic & Signals', trafficCats);
+            }
+            if (maintenanceCats.length > 0) {
+                createSection('🔧 Maintenance', maintenanceCats);
+            }
+            if (roadCats.length > 0) {
+                createSection('🛣️ Road Construction', roadCats);
+            }
+            if (bridgeCats.length > 0) {
+                createSection('🌉 Bridge Construction', bridgeCats);
+            }
+            if (financialCats.length > 0) {
+                createSection('💰 Financial Levels', financialCats);
+            }
+            if (generalCats.length > 0) {
+                createSection('📋 General & Other', generalCats);
+            }
+        }
+
+        function createSection(title, categories) {
+            const section = document.createElement('div');
+            section.className = 'preq-section';
+            
+            const sectionTitle = document.createElement('div');
+            sectionTitle.className = 'preq-section-title';
+            sectionTitle.innerHTML = `${title} <span class="collapse-icon">▼</span>`;
+            sectionTitle.onclick = () => {
+                section.classList.toggle('collapsed');
+            };
+            section.appendChild(sectionTitle);
+            
+            const tags = document.createElement('div');
+            tags.className = 'preq-tags';
+            
+            categories.sort((a, b) => {
+                // Sort alphanumerically
+                const aName = a[0];
+                const bName = b[0];
+                return aName.localeCompare(bName, undefined, {numeric: true});
+            }).forEach(([cat, count]) => {
+                const tag = document.createElement('div');
+                tag.className = 'preq-tag';
+                tag.innerHTML = `${cat} <span class="preq-tag-count">${count}</span>`;
+                tag.dataset.category = cat;
+                tag.onclick = () => togglePreqFilter(cat, tag);
+                tags.appendChild(tag);
+            });
+            
+            section.appendChild(tags);
+            document.getElementById('preqSections').appendChild(section);
+        }
+
+        function togglePreqFilter(category, element) {
+            if (activePreqFilters.has(category)) {
+                activePreqFilters.delete(category);
+                element.classList.remove('active');
+            } else {
+                activePreqFilters.add(category);
+                element.classList.add('active');
+            }
+            
+            document.getElementById('clearAllFilters').style.display = 
+                activePreqFilters.size > 0 ? 'block' : 'none';
+            
+            applyFilters();
+        }
+
+        function populateFilters() {
+            // Letter filter
+            const letters = [...new Set(allData.map(d => d.Letter).filter(l => l))].sort();
+            const letterSelect = document.getElementById('letterFilter');
+            letters.forEach(letter => {
+                const option = document.createElement('option');
+                option.value = letter;
+                option.textContent = `Letter ${letter}`;
+                letterSelect.appendChild(option);
+            });
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        function applyFilters() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const letterFilter = document.getElementById('letterFilter').value;
+            const abnStatusFilter = document.getElementById('abnStatusFilter').value;
+            const yearsFilter = document.getElementById('yearsFilter').value;
+            const emailFilter = document.getElementById('emailFilter').value;
+
+            filteredData = allData.filter(company => {
+                // Search filter
+                if (searchTerm) {
+                    const searchable = Object.values(company).join(' ').toLowerCase();
+                    if (!searchable.includes(searchTerm)) return false;
+                }
+
+                // Letter filter
+                if (letterFilter && company.Letter !== letterFilter) return false;
+
+                // ABN Status filter
+                if (abnStatusFilter) {
+                    if (abnStatusFilter === 'no-abn' && (company.ABN_Found || company.ABN)) return false;
+                    if (abnStatusFilter !== 'no-abn' && company.ABNStatus !== abnStatusFilter) return false;
+                }
+
+                // Years filter
+                if (yearsFilter) {
+                    const years = parseInt(company.YearsInOperation) || 0;
+                    if (yearsFilter === '0-5' && (years < 0 || years > 5)) return false;
+                    if (yearsFilter === '5-10' && (years < 5 || years > 10)) return false;
+                    if (yearsFilter === '10-20' && (years < 10 || years > 20)) return false;
+                    if (yearsFilter === '20+' && years < 20) return false;
+                }
+
+                // Email filter
+                if (emailFilter === 'yes' && !company.Email) return false;
+                if (emailFilter === 'no' && company.Email) return false;
+
+                // Category filter
+                if (activePreqFilters.size > 0) {
+                    let hasCategory = false;
+                    
+                    categoryFields.forEach(field => {
+                        const value = (company[field] || '').toUpperCase();
+                        // Normalize spaces for comparison
+                        const normalizedValue = value.replace(/\s+(\d+)/g, '$1');
+                        
+                        for (const cat of activePreqFilters) {
+                            // Check both with and without spaces
+                            const catWithSpace = cat.replace(/([A-Z]+)(\d+)/, '$1 $2');
+                            if (normalizedValue.includes(cat.toUpperCase()) || 
+                                value.includes(cat.toUpperCase()) ||
+                                value.includes(catWithSpace.toUpperCase())) {
+                                hasCategory = true;
+                                break;
+                            }
+                        }
+                    });
+                    
+                    if (!hasCategory) return false;
+                }
+
+                return true;
+            });
+
+            displayData();
+            updateStats();
+        }
+
+        function sortTable(field) {
+            if (sortField === field) {
+                sortDirection *= -1;
+            } else {
+                sortField = field;
+                sortDirection = 1;
+            }
+            
+            filteredData.sort((a, b) => {
+                let aVal = a[field] || '';
+                let bVal = b[field] || '';
+                
+                if (field === 'YearsInOperation') {
+                    aVal = parseInt(aVal) || 0;
+                    bVal = parseInt(bVal) || 0;
+                }
+                
+                if (aVal < bVal) return -sortDirection;
+                if (aVal > bVal) return sortDirection;
+                return 0;
+            });
+            
+            displayData();
+        }
+
+        function displayData() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            if (filteredData.length === 0) {
+                document.getElementById('noResults').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('noResults').style.display = 'none';
+
+            filteredData.forEach(company => {
+                const row = document.createElement('tr');
+                
+                // Company Name with hyperlink from URL field
+                const nameCell = document.createElement('td');
+                const companyName = company.Firm_ || company.Name || company.RegisteredName || '';
+                const companyUrl = company.URL || company.Url || company.url || '';
+                
+                if (companyUrl) {
+                    nameCell.innerHTML = `<div class="company-name"><a href="${companyUrl}" target="_blank" title="View full record">${companyName}</a></div>`;
+                } else {
+                    nameCell.innerHTML = `<div class="company-name">${companyName}</div>`;
+                }
+                row.appendChild(nameCell);
+
+                // ABN - show ABN_Found or ABN field
+                const abnCell = document.createElement('td');
+                const abn = company.ABN_Found || company.ABN || '';
+                if (abn && abn.length > 5) {
+                    const cleanABN = abn.replace(/\s/g, '');
+                    abnCell.innerHTML = `<a href="https://abr.business.gov.au/ABN/View?abn=${cleanABN}" target="_blank" class="abn-link">${abn}</a>`;
+                } else {
+                    abnCell.textContent = '-';
+                }
+                row.appendChild(abnCell);
+
+                // ABN Status
+                const statusCell = document.createElement('td');
+                if (company.ABNStatus) {
+                    let statusClass = 'status-notfound';
+                    if (company.ABNStatus === 'Active') statusClass = 'status-active';
+                    else if (company.ABNStatus === 'Inactive') statusClass = 'status-inactive';
+                    statusCell.innerHTML = `<span class="status-badge ${statusClass}">${company.ABNStatus}</span>`;
+                } else {
+                    statusCell.textContent = '-';
+                }
+                row.appendChild(statusCell);
+
+                // Years in Operation
+                const yearsCell = document.createElement('td');
+                if (company.YearsInOperation && parseInt(company.YearsInOperation) > 0) {
+                    yearsCell.innerHTML = `<span class="years-badge">${company.YearsInOperation} yrs</span>`;
+                } else {
+                    yearsCell.textContent = '-';
+                }
+                row.appendChild(yearsCell);
+
+                // Contact
+                const contactCell = document.createElement('td');
+                let contactHtml = '';
+                const phone = company.Phone || company.Mobile_No_ || '';
+                const email = company.Email || '';
+                
+                if (phone) {
+                    contactHtml += `📞 ${phone}<br>`;
+                }
+                if (email) {
+                    contactHtml += `✉️ ${email}`;
+                }
+                contactCell.innerHTML = contactHtml || '-';
+                row.appendChild(contactCell);
+
+                // Location - Postcode, Town/Suburb, State
+                const locationCell = document.createElement('td');
+                let locationParts = [];
+                
+                // Check for various field names that might contain location data
+                const suburb = company.Suburb || company.Town || company.City || '';
+                const state = company.State || company.State_ || '';
+                const postcode = company.Postcode || company.Post_Code || company.Postal_Code || '';
+                
+                if (suburb) locationParts.push(suburb);
+                if (state) locationParts.push(state);
+                if (postcode) locationParts.push(postcode);
+                
+                locationCell.textContent = locationParts.length > 0 ? locationParts.join(', ') : '-';
+                row.appendChild(locationCell);
+
+                // Categories - extract and display
+                const catCell = document.createElement('td');
+                const allCats = new Set();
+                
+                categoryFields.forEach(field => {
+                    const value = company[field] || '';
+                    if (!value) return;
+                    
+                    const cleanValue = value.replace(/Categories:\s*/g, '').replace(/Levels:\s*/g, '');
+                    
+                    // Extract categories with multiple patterns
+                    const patterns = [
+                        /\b([A-Z]+\d+(?:-[A-Z]+)?)\b/g,
+                        /\b(SCTV|SSLC|STCE|STS|SVDL)\b/g,
+                        /\b([A-Z]+)\s+(\d+)\b/g,
+                        /\b(M\d+(?:-[A-Z]+)?)\b/g,
+                        /\b(R\d+)\b/g,
+                        /\b(B\d+)\b/g,
+                        /\b(F\d+\+?)\b/g
+                    ];
+                    
+                    patterns.forEach(pattern => {
+                        const matches = [...cleanValue.matchAll(pattern)];
+                        matches.forEach(match => {
+                            let cat = match[0];
+                            // Normalize spaces
+                            cat = cat.replace(/\s+(\d+)/, '$1');
+                            if (cat && cat.length > 1) {
+                                allCats.add(cat);
+                            }
+                        });
+                    });
+                });
+                
+                if (allCats.size > 0) {
+                    const badges = Array.from(allCats).sort().map(cat => {
+                        let badgeClass = 'preq-badge';
+                        if (cat.startsWith('S')) badgeClass += ' preq-badge-traffic';
+                        else if (cat.startsWith('M')) badgeClass += ' preq-badge-maintenance';
+                        else if (cat.startsWith('R')) badgeClass += ' preq-badge-road';
+                        else if (cat.startsWith('B')) badgeClass += ' preq-badge-bridge';
+                        else if (cat.startsWith('F')) badgeClass += ' preq-badge-financial';
+                        return `<span class="${badgeClass}">${cat}</span>`;
+                    }).join(' ');
+                    catCell.innerHTML = badges;
+                } else {
+                    catCell.textContent = '-';
+                }
+                row.appendChild(catCell);
+
+                // Letter
+                const letterCell = document.createElement('td');
+                letterCell.textContent = company.Letter || '-';
+                row.appendChild(letterCell);
+
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateStats() {
+            document.getElementById('totalCompanies').textContent = allData.length;
+            document.getElementById('filteredCompanies').textContent = filteredData.length;
+            document.getElementById('totalCategories').textContent = allCategories.size;
+            
+            const withABN = allData.filter(c => c.ABN_Found || c.ABN).length;
+            document.getElementById('withABN').textContent = withABN;
+            
+            const active = allData.filter(c => c.ABNStatus === 'Active').length;
+            document.getElementById('activeABN').textContent = active;
+            
+            const inactive = allData.filter(c => c.ABNStatus === 'Inactive').length;
+            document.getElementById('inactiveABN').textContent = inactive;
+        }
+
+        function exportResults() {
+            if (filteredData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            const headers = Object.keys(filteredData[0]);
+            let csv = headers.map(h => `"${h}"`).join(',') + '\n';
+
+            filteredData.forEach(row => {
+                csv += headers.map(h => {
+                    const value = row[h] || '';
+                    return `"${value.toString().replace(/"/g, '""')}"`;
+                }).join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `vicroads_export_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+        }
+    </script>
+</body>
+</html>
