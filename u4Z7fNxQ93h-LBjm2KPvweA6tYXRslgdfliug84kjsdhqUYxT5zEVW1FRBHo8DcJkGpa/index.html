@@ -623,6 +623,12 @@
                                 <option value="no">No Email</option>
                             </select>
                         </div>
+                        <div class="filter-group">
+                            <label>Category</label>
+                            <select id="categoryFilter">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
                     </div>
 
 
@@ -840,6 +846,7 @@
             document.getElementById('abnStatusFilter').addEventListener('change', applyFilters);
             document.getElementById('yearsFilter').addEventListener('change', applyFilters);
             document.getElementById('emailFilter').addEventListener('change', applyFilters);
+            document.getElementById('categoryFilter').addEventListener('change', applyFilters);
 
             document.getElementById('clearAllFilters').addEventListener('click', () => {
                 activePreqFilters.clear();
@@ -1043,6 +1050,18 @@
                 option.textContent = `Letter ${letter}`;
                 letterSelect.appendChild(option);
             });
+
+            // Category dropdown filter
+            const categorySelect = document.getElementById('categoryFilter');
+            const sortedCategories = Array.from(allCategories.keys()).sort((a, b) =>
+                a.localeCompare(b, undefined, {numeric: true})
+            );
+            sortedCategories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = `${cat} (${allCategories.get(cat)})`;
+                categorySelect.appendChild(option);
+            });
         }
 
         function debounce(func, wait) {
@@ -1059,6 +1078,7 @@
             const abnStatusFilter = document.getElementById('abnStatusFilter').value;
             const yearsFilter = document.getElementById('yearsFilter').value;
             const emailFilter = document.getElementById('emailFilter').value;
+            const categoryFilter = document.getElementById('categoryFilter').value;
 
             filteredData = allData.filter(company => {
                 if (searchTerm) {
@@ -1080,7 +1100,37 @@
                 if (emailFilter === 'yes' && !company.Email) return false;
                 if (emailFilter === 'no' && company.Email) return false;
 
-                // Category filter with true AND/OR logic
+                // Category dropdown filter
+                if (categoryFilter) {
+                    const companyCatsForDropdown = new Set();
+                    categoryFields.forEach(field => {
+                        const value = company[field] || '';
+                        if (!value) return;
+                        const cleanValue = value.replace(/Categories:\s*/g, '').replace(/Levels:\s*/g, '');
+                        const patterns = [
+                            /\b([A-Z]+\d+(?:-[A-Z]+)?)\b/g,
+                            /\b(SCTV|SSLC|STCE|STS|SVDL)\b/g,
+                            /\b([A-Z]+)\s+(\d+)\b/g,
+                            /\b(M\d+(?:-[A-Z]+)?)\b/g,
+                            /\b(R\d+)\b/g,
+                            /\b(B\d+)\b/g,
+                            /\b(F\d+\+?)\b/g
+                        ];
+                        patterns.forEach(pattern => {
+                            const matches = [...cleanValue.matchAll(pattern)];
+                            matches.forEach(match => {
+                                let cat = match[0];
+                                cat = cat.replace(/\s+(\d+)/, '$1');
+                                if (cat && cat.length > 1) {
+                                    companyCatsForDropdown.add(cat.toUpperCase());
+                                }
+                            });
+                        });
+                    });
+                    if (!companyCatsForDropdown.has(categoryFilter.toUpperCase())) return false;
+                }
+
+                // Category filter with true AND/OR logic (tag-based)
                 if (activePreqFilters.size > 0) {
                     // Gather all categories for this company
                     const companyCats = new Set();

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Example Page - Shared Header Demo</title>
+  <style>
+    /* Basic page styling - customize for your project */
+    :root {
+      --bg: #0b0f14;
+      --panel: #111823;
+      --muted: #93a4b8;
+      --text: #e7eef8;
+      --line: #1d2a3a;
+      --accent: #4da3ff;
+      --ok: #1dd1a1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      min-height: 100vh;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    h1 { font-size: 28px; margin: 0 0 12px 0; }
+    .subtitle { color: var(--muted); margin-bottom: 32px; }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .card h2 { margin: 0 0 16px 0; font-size: 18px; color: var(--accent); }
+    .card p { margin: 0 0 12px 0; line-height: 1.6; }
+    .card pre {
+      background: #0c121b;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      font-size: 13px;
+      color: var(--ok);
+      margin: 12px 0;
+    }
+
+    .user-info {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .user-info div {
+      padding: 12px 20px;
+      background: rgba(77,163,255,0.1);
+      border-radius: 8px;
+    }
+    .user-info label { font-size: 11px; color: var(--muted); text-transform: uppercase; display: block; margin-bottom: 4px; }
+    .user-info span { font-size: 16px; font-weight: 500; color: var(--text); }
+
+    .btn {
+      background: #0f2440;
+      border: 1px solid #1b3c66;
+      color: var(--accent);
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    .btn:hover { border-color: var(--accent); }
+  </style>
+
+  <!-- Include the shared header script -->
+  <script src="shared-header.js"></script>
+</head>
+<body>
+  <!-- Container for the shared header (will be auto-created if missing) -->
+  <div id="shared-header"></div>
+
+  <!-- Initialize the header with page ID and title -->
+  <script>
+    // initSharedHeader returns the current user object
+    const user = initSharedHeader('index', 'Example Page');
+
+    // You can also access the user later via:
+    // const user = window.getSharedUser();
+  </script>
+
+  <div class="container">
+    <h1>Shared Header Demo</h1>
+    <p class="subtitle">This page demonstrates how to use the reusable shared header component.</p>
+
+    <!-- User Info Display -->
+    <div class="card">
+      <h2>Current User</h2>
+      <p>The shared header automatically handles Cloudflare authentication and provides user info:</p>
+      <div class="user-info">
+        <div>
+          <label>Name</label>
+          <span id="userName">Loading...</span>
+        </div>
+        <div>
+          <label>Email</label>
+          <span id="userEmail">Loading...</span>
+        </div>
+        <div>
+          <label>Auth Method</label>
+          <span id="authMethod">Loading...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- How It Works -->
+    <div class="card">
+      <h2>How to Use</h2>
+      <p><strong>1. Include the script:</strong></p>
+      <pre>&lt;script src="shared-header.js"&gt;&lt;/script&gt;</pre>
+
+      <p><strong>2. Add the container (optional - will be auto-created):</strong></p>
+      <pre>&lt;div id="shared-header"&gt;&lt;/div&gt;</pre>
+
+      <p><strong>3. Initialize with your page ID and title:</strong></p>
+      <pre>const user = initSharedHeader('mypage', 'My Page Title');</pre>
+
+      <p><strong>4. Access user info anytime:</strong></p>
+      <pre>const user = window.getSharedUser();
+console.log(user.name, user.email);</pre>
+    </div>
+
+    <!-- Configuration -->
+    <div class="card">
+      <h2>Configuration</h2>
+      <p>Edit the top of <code>shared-header.js</code> to customize:</p>
+      <pre>// Navigation links
+const NAV_LINKS = [
+  { href: 'index.html', label: 'Home', id: 'index' },
+  { href: 'dashboard.html', label: 'Dashboard', id: 'dashboard' },
+  { href: 'admin_tools.html', label: 'Admin', id: 'admin', restricted: true }
+];
+
+// Admin users (by name)
+const ADMIN_USERS = ['Admin User'];
+
+// Project name in header
+const PROJECT_NAME = 'My Project';</pre>
+    </div>
+
+    <!-- Events -->
+    <div class="card">
+      <h2>Events</h2>
+      <p>Listen for user login events:</p>
+      <pre>window.addEventListener('userLogin', (e) => {
+  console.log('User logged in:', e.detail.name, e.detail.email);
+  // Update your UI here
+});</pre>
+    </div>
+
+    <!-- Test Actions -->
+    <div class="card">
+      <h2>Test Actions</h2>
+      <button class="btn" onclick="testGetUser()">Get Current User</button>
+      <button class="btn" onclick="testAuthState()">Get Auth State</button>
+      <button class="btn" onclick="testShowAuth()">Show Auth Modal</button>
+      <pre id="testOutput" style="margin-top: 16px; min-height: 60px;">Click a button to test...</pre>
+    </div>
+  </div>
+
+  <script>
+    // Update user info display
+    function updateUserDisplay() {
+      const user = window.getSharedUser();
+      const auth = window.getAuthState();
+
+      document.getElementById('userName').textContent = user.name || '(Not logged in)';
+      document.getElementById('userEmail').textContent = user.email || '-';
+      document.getElementById('authMethod').textContent = auth.authMethod || 'none';
+    }
+
+    // Initial update
+    setTimeout(updateUserDisplay, 100);
+
+    // Listen for login events
+    window.addEventListener('userLogin', (e) => {
+      console.log('User login event:', e.detail);
+      updateUserDisplay();
+    });
+
+    // Refresh auth state periodically
+    setInterval(updateUserDisplay, 5000);
+
+    // Test functions
+    function testGetUser() {
+      const user = window.getSharedUser();
+      document.getElementById('testOutput').textContent = JSON.stringify(user, null, 2);
+    }
+
+    function testAuthState() {
+      const auth = window.getAuthState();
+      document.getElementById('testOutput').textContent = JSON.stringify(auth, null, 2);
+    }
+
+    function testShowAuth() {
+      window.showAuthRequired();
+      document.getElementById('testOutput').textContent = 'Auth modal displayed (if IP not whitelisted, shows error modal)';
+    }
+  </script>
+</body>
+</html>

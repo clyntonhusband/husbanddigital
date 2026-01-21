@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Tools</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #111823;
+      --muted: #93a4b8;
+      --text: #e7eef8;
+      --line: #1d2a3a;
+      --chip: #182337;
+      --accent: #4da3ff;
+      --ok: #1dd1a1;
+      --bad: #ff5a5f;
+      --warn: #f7b731;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    header { padding: 16px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+    header h1 { margin: 0; font-size: 20px; font-weight: 700; }
+    header .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+    .section-title {
+      font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+      margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+    }
+    .section-title:first-of-type { margin-top: 0; }
+
+    .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px; }
+
+    .tool-card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      padding: 16px; transition: border-color 0.15s;
+    }
+    .tool-card:hover { border-color: rgba(77,163,255,0.3); }
+
+    .tool-name { font-size: 15px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .tool-name .icon { font-size: 18px; }
+    .tool-desc { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.4; }
+    .tool-actions { display: flex; gap: 8px; }
+
+    .btn {
+      background: var(--chip); color: var(--text); border: 1px solid var(--line);
+      padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      transition: all 0.15s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn:hover { border-color: var(--accent); }
+    .btn.primary { background: #0f2440; border-color: #1b3c66; color: var(--accent); }
+    .btn.success { background: #0a2e1f; border-color: #1b6640; color: var(--ok); }
+    .btn.danger { background: #2e0a0a; border-color: #661b1b; color: var(--bad); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Modal styles */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 1000; justify-content: center; align-items: center; padding: 20px;
+    }
+    .modal-overlay.active { display: flex; }
+
+    .modal {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+      max-width: 800px; width: 100%; max-height: 80vh; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+
+    .modal-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-header h2 { margin: 0; font-size: 18px; }
+    .modal-close {
+      background: none; border: none; color: var(--muted);
+      font-size: 24px; cursor: pointer; padding: 0; line-height: 1;
+    }
+    .modal-close:hover { color: var(--text); }
+
+    .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+
+    .modal-footer {
+      padding: 16px 20px; border-top: 1px solid var(--line);
+      display: flex; justify-content: flex-end; gap: 10px;
+    }
+
+    .preview-summary {
+      background: var(--chip); border: 1px solid var(--line);
+      border-radius: 8px; padding: 16px; margin-bottom: 16px;
+    }
+    .preview-summary h3 { margin: 0 0 8px; font-size: 14px; color: var(--accent); }
+    .preview-count { font-size: 32px; font-weight: 700; color: var(--warn); }
+    .preview-count.zero { color: var(--ok); }
+
+    .sample-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .sample-table th {
+      position: sticky; top: 0; background: var(--panel); text-align: left;
+      padding: 8px; font-size: 11px; text-transform: uppercase;
+      color: var(--muted); border-bottom: 1px solid var(--line);
+    }
+    .sample-table td {
+      padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.04);
+      max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .loading { text-align: center; padding: 40px; color: var(--muted); }
+    .error { color: var(--bad); padding: 12px; background: rgba(255,90,95,0.1); border-radius: 8px; }
+    .success-msg { color: var(--ok); padding: 12px; background: rgba(29,209,161,0.1); border-radius: 8px; }
+
+    .status-card {
+      background: var(--chip); border-radius: 8px; padding: 12px 16px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .status-label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+    .status-value { font-size: 20px; font-weight: 600; color: var(--ok); }
+  </style>
+  <script src="shared-header.js"></script>
+</head>
+<body>
+  <div id="shared-header"></div>
+  <script>initSharedHeader('admin', 'Admin Tools');</script>
+
+  <header>
+    <h1>Admin Tools</h1>
+    <div class="sub">Run maintenance scripts and manage system settings</div>
+  </header>
+
+  <div class="wrap">
+    <!-- System Status -->
+    <div class="section-title">System Status</div>
+    <div class="tools-grid" id="statusDashboard">
+      <div class="tool-card">
+        <div class="tool-name"><span class="icon">&#128202;</span> Database</div>
+        <div class="tool-desc">Database statistics and health</div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 12px;">
+          <div class="status-card">
+            <span class="status-label">Size</span>
+            <span class="status-value" id="dbSize">-</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Login Logs</span>
+            <span class="status-value" id="loginLogCount">-</span>
+          </div>
+        </div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name"><span class="icon">&#128272;</span> Authentication</div>
+        <div class="tool-desc">Authentication and access statistics</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px;">
+          <div class="status-card">
+            <span class="status-label">Unique Users</span>
+            <span class="status-value" id="uniqueUsers">-</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Logins (24h)</span>
+            <span class="status-value" id="logins24h">-</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Whitelisted IPs</span>
+            <span class="status-value" id="whitelistedIps">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IP Whitelist Management -->
+    <div class="section-title">IP Whitelist</div>
+    <div class="tool-card">
+      <div class="tool-name"><span class="icon">&#127760;</span> Manage IP Whitelist</div>
+      <div class="tool-desc">IPs on this list can bypass Cloudflare authentication and use manual login.</div>
+      <div style="margin-top: 12px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+          <input type="text" id="newIPAddress" placeholder="IP Address" style="flex: 1; min-width: 120px; background: var(--chip); color: var(--text); border: 1px solid var(--line); padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+          <input type="text" id="newIPDesc" placeholder="Description (optional)" style="flex: 2; min-width: 150px; background: var(--chip); color: var(--text); border: 1px solid var(--line); padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+          <button class="btn primary" onclick="addIPToWhitelist()">Add IP</button>
+        </div>
+        <div id="ipWhitelistStatus" style="font-size: 12px; color: var(--muted); margin-bottom: 8px;"></div>
+        <div id="ipWhitelistList" style="max-height: 200px; overflow-y: auto;"></div>
+      </div>
+    </div>
+
+    <!-- Admin Tools -->
+    <div class="section-title">Maintenance Tools</div>
+    <div class="tools-grid" id="actionTools">
+      <div class="tool-card">
+        <div class="tool-name"><span class="icon">&#128465;</span> Clear Old Login Logs</div>
+        <div class="tool-desc">Delete login logs older than 30 days to keep the database clean.</div>
+        <div class="tool-actions">
+          <button class="btn primary" onclick="previewTool('clear_old_logs')">Preview Changes</button>
+        </div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name"><span class="icon">&#128736;</span> Example Tool</div>
+        <div class="tool-desc">This is a template tool to demonstrate the preview-then-execute pattern.</div>
+        <div class="tool-actions">
+          <button class="btn primary" onclick="previewTool('example_tool')">Preview</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview Modal -->
+  <div class="modal-overlay" id="previewModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Preview Changes</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <div class="loading">Loading preview...</div>
+      </div>
+      <div class="modal-footer" id="modalFooter">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn success" id="executeBtn" onclick="executeTool()" disabled>Execute</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTool = null;
+    let previewData = null;
+
+    // Load system status on page load
+    async function loadSystemStatus() {
+      try {
+        const res = await fetch('admin_tools_api.php?action=system_status');
+        const data = await res.json();
+
+        document.getElementById('dbSize').textContent = data.database?.size || '-';
+        document.getElementById('loginLogCount').textContent = data.database?.login_log_count?.toLocaleString() || '0';
+        document.getElementById('uniqueUsers').textContent = data.auth?.unique_users?.toLocaleString() || '0';
+        document.getElementById('logins24h').textContent = data.auth?.logins_24h?.toLocaleString() || '0';
+        document.getElementById('whitelistedIps').textContent = data.auth?.whitelisted_ips?.toLocaleString() || '0';
+      } catch (err) {
+        console.error('Failed to load status:', err);
+      }
+    }
+
+    // IP Whitelist functions
+    async function loadIPWhitelist() {
+      try {
+        const res = await fetch('auth_api.php?action=get_whitelist');
+        const data = await res.json();
+        const container = document.getElementById('ipWhitelistList');
+
+        if (!data.ok || data.ips.length === 0) {
+          container.innerHTML = '<div style="color: var(--muted); font-style: italic; padding: 12px;">No IPs whitelisted yet.</div>';
+          return;
+        }
+
+        container.innerHTML = data.ips.map(ip => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--chip); border-radius: 6px; margin-bottom: 6px;">
+            <div>
+              <span style="font-family: monospace; color: var(--ok);">${escHtml(ip.ip_address)}</span>
+              ${ip.description ? `<span style="color: var(--muted); margin-left: 12px;">${escHtml(ip.description)}</span>` : ''}
+            </div>
+            <button class="btn danger" style="padding: 4px 10px; font-size: 11px;" onclick="removeIP(${ip.id})">&times;</button>
+          </div>
+        `).join('');
+      } catch (err) {
+        document.getElementById('ipWhitelistList').innerHTML = `<div class="error">Error: ${escHtml(err.message)}</div>`;
+      }
+    }
+
+    async function addIPToWhitelist() {
+      const ip = document.getElementById('newIPAddress').value.trim();
+      const desc = document.getElementById('newIPDesc').value.trim();
+      const statusEl = document.getElementById('ipWhitelistStatus');
+
+      if (!ip) {
+        statusEl.innerHTML = '<span style="color: var(--bad);">IP address is required</span>';
+        return;
+      }
+
+      statusEl.innerHTML = '<span style="color: var(--muted);">Adding...</span>';
+
+      try {
+        const user = window.getSharedUser ? window.getSharedUser() : { email: 'admin' };
+        const res = await fetch('auth_api.php?action=add_ip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip_address: ip, description: desc, added_by: user.email || 'admin' })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          statusEl.innerHTML = '<span style="color: var(--ok);">IP added successfully!</span>';
+          document.getElementById('newIPAddress').value = '';
+          document.getElementById('newIPDesc').value = '';
+          loadIPWhitelist();
+          loadSystemStatus();
+          setTimeout(() => { statusEl.innerHTML = ''; }, 3000);
+        } else {
+          statusEl.innerHTML = `<span style="color: var(--bad);">Error: ${escHtml(data.error)}</span>`;
+        }
+      } catch (err) {
+        statusEl.innerHTML = `<span style="color: var(--bad);">Error: ${escHtml(err.message)}</span>`;
+      }
+    }
+
+    async function removeIP(id) {
+      if (!confirm('Remove this IP from the whitelist?')) return;
+
+      try {
+        const res = await fetch('auth_api.php?action=remove_ip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: id })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          loadIPWhitelist();
+          loadSystemStatus();
+        } else {
+          alert('Error: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // Admin Tool functions
+    async function previewTool(toolId) {
+      currentTool = toolId;
+      document.getElementById('previewModal').classList.add('active');
+      document.getElementById('modalBody').innerHTML = '<div class="loading">Loading preview...</div>';
+      document.getElementById('executeBtn').disabled = true;
+
+      const titles = {
+        'clear_old_logs': 'Clear Old Login Logs',
+        'example_tool': 'Example Tool'
+      };
+      document.getElementById('modalTitle').textContent = titles[toolId] || 'Preview';
+
+      try {
+        const res = await fetch(`admin_tools_api.php?action=preview&tool=${toolId}`);
+        previewData = await res.json();
+
+        if (previewData.error) {
+          document.getElementById('modalBody').innerHTML = `<div class="error">${previewData.error}</div>`;
+          return;
+        }
+
+        renderPreview(toolId, previewData);
+        document.getElementById('executeBtn').disabled = previewData.totalAffected === 0;
+      } catch (err) {
+        document.getElementById('modalBody').innerHTML = `<div class="error">Error: ${err.message}</div>`;
+      }
+    }
+
+    function renderPreview(toolId, data) {
+      let html = `<div class="preview-summary">
+        <h3>Records to Process</h3>
+        <div class="preview-count ${data.totalAffected === 0 ? 'zero' : ''}">${data.totalAffected.toLocaleString()}</div>
+        <div style="color: var(--muted); font-size: 13px; margin-top: 4px;">${escHtml(data.description)}</div>
+        ${data.note ? `<div style="margin-top: 8px; font-size: 12px; color: var(--accent);">${escHtml(data.note)}</div>` : ''}
+      </div>`;
+
+      if (data.totalAffected === 0) {
+        html += `<div class="success-msg">No changes needed - all data is already up to date.</div>`;
+      } else if (data.samples && data.samples.length > 0) {
+        html += `<h4 style="margin: 16px 0 8px; font-size: 13px; color: var(--muted);">Sample Records</h4>`;
+        html += `<div style="overflow-x: auto;"><table class="sample-table"><thead><tr>`;
+        const keys = Object.keys(data.samples[0]);
+        keys.forEach(key => { html += `<th>${escHtml(key)}</th>`; });
+        html += `</tr></thead><tbody>`;
+        data.samples.forEach(sample => {
+          html += `<tr>`;
+          keys.forEach(key => { html += `<td title="${escHtml(sample[key])}">${escHtml(sample[key])}</td>`; });
+          html += `</tr>`;
+        });
+        html += `</tbody></table></div>`;
+      }
+
+      document.getElementById('modalBody').innerHTML = html;
+    }
+
+    async function executeTool() {
+      if (!currentTool || !previewData || previewData.totalAffected === 0) return;
+
+      document.getElementById('executeBtn').disabled = true;
+      document.getElementById('executeBtn').textContent = 'Executing...';
+
+      try {
+        const res = await fetch(`admin_tools_api.php?action=execute&tool=${currentTool}`);
+        const result = await res.json();
+
+        if (result.error) {
+          document.getElementById('modalBody').innerHTML = `<div class="error">${result.error}</div>`;
+          document.getElementById('executeBtn').textContent = 'Execute';
+          document.getElementById('executeBtn').disabled = false;
+          return;
+        }
+
+        let html = `<div class="success-msg"><strong>Success!</strong><br>${escHtml(result.message)}</div>`;
+        if (result.updated !== undefined) {
+          html += `<div style="margin-top: 16px; font-size: 14px;"><strong>Records updated:</strong> ${result.updated.toLocaleString()}</div>`;
+        }
+
+        document.getElementById('modalBody').innerHTML = html;
+        document.getElementById('modalFooter').innerHTML = `<button class="btn" onclick="closeModal()">Close</button>`;
+        loadSystemStatus();
+      } catch (err) {
+        document.getElementById('modalBody').innerHTML = `<div class="error">Error: ${err.message}</div>`;
+        document.getElementById('executeBtn').textContent = 'Execute';
+        document.getElementById('executeBtn').disabled = false;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('previewModal').classList.remove('active');
+      currentTool = null;
+      previewData = null;
+      document.getElementById('modalFooter').innerHTML = `
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn success" id="executeBtn" onclick="executeTool()" disabled>Execute</button>
+      `;
+    }
+
+    function escHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Close modal on overlay click or Escape
+    document.getElementById('previewModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // Initialize
+    loadSystemStatus();
+    loadIPWhitelist();
+    setInterval(loadSystemStatus, 30000);
+  </script>
+</body>
+</html>
