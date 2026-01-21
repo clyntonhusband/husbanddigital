@@ -870,76 +870,135 @@
             });
         }
         function discoverCategoryFields() {
-            categoryFields = [];
-            const possibleFields = [
+            // STRICT: Only use known prequalification group columns
+            // DO NOT auto-discover from content - this picks up addresses and other text
+            const knownCategoryFields = [
+                // Main categories field from scraper
                 'PrequalificationCategories',
+                // Group-specific columns from enhanced scraper
+                'Maintenance_and_General_Works_Group',
+                'Traffic_Management_Services_contract_Groups',
+                'Traffic_Control_Systems_Supply_Maintenance_a',
+                'Road_and_Bridge_Construction_Group',
+                'Road_and_Bridge_Design_Group',
+                'Environment_Group',
+                'Pavement_and_Geotechnical_Engineering_Group',
+                'Transport_and_Planning_Studies_Group',
+                'Specialists',
+                // Legacy field names (with different underscore patterns)
                 'Traffic_Management_Services__contract__Groups',
                 'Traffic_Control_Systems_Supply___Maintenance__a',
-                'Maintenance_and_General_Works__Group',
-                'Road_and_Bridge_Construction_Group',
-                'Maintenance',
-                'Categories'
+                'Maintenance_and_General_Works__Group'
             ];
-            
-            allData.forEach(company => {
-                Object.keys(company).forEach(key => {
-                    const value = company[key] || '';
-                    // Check if field contains category-like data
-                    if ((value.includes('Categories:') || 
-                         value.match(/\b[A-Z]+\d*/g) ||
-                         value.match(/\b(M\d|R\d|B\d|F\d+)/g) ||
-                         possibleFields.some(f => key.includes(f))) && 
-                        !categoryFields.includes(key)) {
-                        categoryFields.push(key);
+
+            categoryFields = [];
+
+            // Check which known fields exist in the data
+            if (allData.length > 0) {
+                const sampleKeys = Object.keys(allData[0]);
+                knownCategoryFields.forEach(field => {
+                    // Check for exact match or partial match (handles underscore variations)
+                    const matchingKey = sampleKeys.find(k =>
+                        k === field ||
+                        k.replace(/_+/g, '_').toLowerCase() === field.replace(/_+/g, '_').toLowerCase()
+                    );
+                    if (matchingKey && !categoryFields.includes(matchingKey)) {
+                        categoryFields.push(matchingKey);
                     }
                 });
-            });
-            
+            }
+
             console.log('Category fields found:', categoryFields);
         }
 
         function extractAllCategories() {
             allCategories.clear();
-            
+
+            // STRICT valid category patterns - only match known VicRoads prequalification codes
+            const validPatterns = [
+                // Maintenance: M1, M2-BW, M2-PW, M2-RW
+                /\b(M1|M2-BW|M2-PW|M2-RW)\b/gi,
+
+                // Road Construction: R1-R5
+                /\b(R[1-5])\b/g,
+
+                // Bridge Construction: B1-B4
+                /\b(B[1-4])\b/g,
+
+                // Financial: F001, F002, F005, F010, F020, F050, F100, F150, F150+
+                /\b(F\d{3}\+?|F150\+?)\b/g,
+
+                // Traffic/Signals: SCTV, SSLC, STCE, STCE1, STCE2, STS, STS1, STS2, SVDL, SOED
+                /\b(SCTV|SSLC|STCE\d?|STS\d?|SVDL|SOED)\b/gi,
+
+                // Geotechnical: GT-DES, GT-INV, GT-PRE, GT-GWH
+                /\b(GT-(?:DES|INV|PRE|GWH))\b/gi,
+
+                // Pavement Design: ND1, ND2, ND3 (New Design)
+                /\b(ND[1-3])\b/g,
+
+                // Rehabilitation: RM1, RM2, RM3, RM4
+                /\b(RM[1-4])\b/g,
+
+                // Pavement Testing: PT1, PT2
+                /\b(PT[1-2])\b/g,
+
+                // Hydraulic Design: SH (Simple), CH (Complex)
+                /\b(SH|CH)\b/g,
+
+                // Structures Design: SS (Simple), CS (Complex), PE (Proof Engineering)
+                /\b(SS|CS|PE)\b/g,
+
+                // Road Design: RR (Rural Road), UR (Urban Road), FD (Freeways)
+                /\b(RR|UR|FD)\b/g,
+
+                // Water Sensitive: WSRD
+                /\b(WSRD)\b/gi,
+
+                // Environmental: E-XXX codes
+                /\b(E-(?:AQM|AFF|TFL|EAC|EMS|NMD|AQMD))\b/gi,
+
+                // Planning Studies: ST, HC, EPM, EESM, PSAM, PSAD, EESW, PAR
+                /\b(ST|HC|EPM|EESM|PSAM|PSAD|EESW|PAR)\b/g,
+
+                // Transport/Traffic Planning codes
+                /\b(DBS|DMR|DSD|PAM|PRL|PRN|PRS|TAR|TCA|TLD|TMC|TOF|TOS|TPF|TSD|TSM|TTF|FIR|FVR|RSAUDIT)\b/gi,
+
+                // Specialist Studies
+                /\b(CE|EA|LU|LVI|PNM|RE|RM|SI|TM)\b/g,
+
+                // General Works: G1, G2-RSA, G2-GF, G2-SE
+                /\b(G1|G2-(?:RSA|GF|SE))\b/gi
+            ];
+
             allData.forEach(company => {
                 const companyCategories = new Set();
-                
+
                 categoryFields.forEach(field => {
                     const value = company[field] || '';
                     if (!value) return;
-                    
-                    // Clean and extract categories
+
+                    // Clean the value
                     const cleanValue = value.replace(/Categories:\s*/g, '').replace(/Levels:\s*/g, '');
-                    
-                    // Multiple patterns to catch all variations
-                    const patterns = [
-                        /\b([A-Z]+\d+(?:-[A-Z]+)?)\b/g,     // R3, F150, M2-BW
-                        /\b(SCTV|SSLC|STCE|STS|SVDL)\b/g,   // Pure letter codes
-                        /\b([A-Z]+)\s+(\d+)\b/g,            // STCE 1, STS 2 (with space)
-                        /\b(M\d+(?:-[A-Z]+)?)\b/g,          // M1, M2-BW
-                        /\b(R\d+)\b/g,                       // R1, R2, R3 (Road Construction)
-                        /\b(B\d+)\b/g,                       // B1, B2, B3 (Bridge Construction)
-                        /\b(F\d+\+?)\b/g                     // F150, F150+ (Financial)
-                    ];
-                    
-                    patterns.forEach(pattern => {
+
+                    // Apply strict patterns only
+                    validPatterns.forEach(pattern => {
                         const matches = [...cleanValue.matchAll(pattern)];
                         matches.forEach(match => {
-                            let cat = match[0];
-                            // Normalize spaces (STCE 2 -> STCE2)
-                            cat = cat.replace(/\s+(\d+)/, '$1');
-                            if (cat && cat.length > 1) {
+                            let cat = match[1] || match[0];
+                            cat = cat.toUpperCase();
+                            if (cat && cat.length >= 2) {
                                 companyCategories.add(cat);
                             }
                         });
                     });
                 });
-                
+
                 companyCategories.forEach(cat => {
                     allCategories.set(cat, (allCategories.get(cat) || 0) + 1);
                 });
             });
-            
+
             console.log('Extracted categories:', Array.from(allCategories.keys()));
         }
 
