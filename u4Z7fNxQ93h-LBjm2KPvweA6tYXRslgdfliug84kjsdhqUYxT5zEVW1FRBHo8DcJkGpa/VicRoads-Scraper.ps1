@@ -6,9 +6,11 @@
 #   .\VicRoads-Scraper.ps1 -ForceRefresh             # Download fresh from website
 #   .\VicRoads-Scraper.ps1 -Letters @('A','B')       # Only process specific letters
 #   .\VicRoads-Scraper.ps1 -ForceRefresh -Letters @('A')  # Fresh download, letter A only
+#   .\VicRoads-Scraper.ps1 -ProcessLocal             # Process ALL existing HTML files directly
 
 param(
     [switch]$ForceRefresh,      # If set, re-download all HTML files; otherwise use cached
+    [switch]$ProcessLocal,      # If set, process all existing raw_html_*.html files directly
     [string[]]$Letters = @()    # Specific letters to process (default: all A-Z)
 )
 
@@ -29,15 +31,23 @@ Write-Host "Output directory: $outputDir" -ForegroundColor Yellow
 Write-Host "Letters to process: $($Letters -join ', ')" -ForegroundColor Yellow
 
 Write-Host ""
-if ($ForceRefresh) {
+if ($ProcessLocal) {
+    Write-Host "MODE: PROCESS LOCAL" -ForegroundColor Cyan
+    Write-Host "  -> Will parse ALL existing raw_html_*.html files directly" -ForegroundColor Cyan
+    Write-Host "  -> Does NOT download anything or use letter index pages" -ForegroundColor Cyan
+} elseif ($ForceRefresh) {
     Write-Host "MODE: FORCE REFRESH" -ForegroundColor Magenta
     Write-Host "  -> Will re-download ALL HTML files from VicRoads website" -ForegroundColor Magenta
 } else {
     Write-Host "MODE: USE CACHED FILES" -ForegroundColor Green
     Write-Host "  -> Will use existing HTML files in VicRoads_Data folder" -ForegroundColor Green
     Write-Host "  -> Only downloads if file doesn't exist" -ForegroundColor Green
-    Write-Host "  -> To force fresh download, run: .\VicRoads-Scraper.ps1 -ForceRefresh" -ForegroundColor DarkGray
 }
+Write-Host ""
+Write-Host "Other options:" -ForegroundColor DarkGray
+Write-Host "  -ProcessLocal     Parse all existing HTML files (no download)" -ForegroundColor DarkGray
+Write-Host "  -ForceRefresh     Re-download everything from website" -ForegroundColor DarkGray
+Write-Host "  -Letters @('A')   Only process specific letters" -ForegroundColor DarkGray
 Write-Host ""
 
 $debugLog = Join-Path $outputDir "debug.log"
@@ -480,31 +490,84 @@ function Get-CompaniesFromLetter {
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "Starting Extraction Process" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Processing letters: $($Letters -join ', ')" -ForegroundColor Yellow
 
-$totalLetters = $Letters.Count
-$letterIndex = 0
 $startTime = Get-Date
 
-foreach ($letter in $Letters) {
-    $letterIndex++
-    Write-Host "`n[$letterIndex/$totalLetters] Processing letter: $letter" -ForegroundColor Magenta
-    
-    $letterCompanies = Get-CompaniesFromLetter -Letter $letter
-    $allCompanies += $letterCompanies
-    
-    if ($letterCompanies.Count -gt 0) {
-        $letterFile = Join-Path $outputDir "Letter_$letter.csv"
-        $letterCompanies | Export-Csv -Path $letterFile -NoTypeInformation
-        Write-Host "Saved to: $letterFile" -ForegroundColor Gray
+# ═══════════════════════════════════════════════════════════════════════════════
+# PROCESS LOCAL MODE: Parse all existing HTML files directly
+# ═══════════════════════════════════════════════════════════════════════════════
+if ($ProcessLocal) {
+    Write-Host "MODE: PROCESS LOCAL - Parsing all existing HTML files" -ForegroundColor Magenta
+
+    $htmlFiles = Get-ChildItem -Path $outputDir -Filter "raw_html_*.html" | Sort-Object Name
+    $totalFiles = $htmlFiles.Count
+
+    Write-Host "Found $totalFiles HTML files to process" -ForegroundColor Yellow
+
+    $fileIndex = 0
+    foreach ($htmlFile in $htmlFiles) {
+        $fileIndex++
+
+        # Extract company name from filename: raw_html_CompanyName.html
+        $companyName = $htmlFile.BaseName -replace '^raw_html_', '' -replace '_', ' '
+
+        # Determine letter from first character
+        $firstChar = $companyName.Substring(0, 1).ToUpper()
+        if ($firstChar -match '[A-Z]') {
+            $letter = $firstChar
+        } else {
+            $letter = '#'
+        }
+
+        Write-Host "[$fileIndex/$totalFiles] $companyName" -ForegroundColor Cyan
+
+        # Create a dummy URL for the company
+        $dummyUrl = "file://$($htmlFile.FullName)"
+
+        # Parse the HTML file
+        $companyDetails = Get-CompanyDetails -CompanyUrl $dummyUrl -CompanyName $companyName
+        $companyDetails | Add-Member -NotePropertyName 'Letter' -NotePropertyValue $letter -Force
+
+        $allCompanies += $companyDetails
+
+        # Progress update every 50 files
+        if ($fileIndex % 50 -eq 0) {
+            $elapsed = (Get-Date) - $startTime
+            $avgTime = $elapsed.TotalSeconds / $fileIndex
+            $remaining = [TimeSpan]::FromSeconds($avgTime * ($totalFiles - $fileIndex))
+            Write-Host "  Progress: $fileIndex/$totalFiles | Elapsed: $($elapsed.ToString('mm\:ss')) | ETA: $($remaining.ToString('mm\:ss'))" -ForegroundColor DarkCyan
+        }
     }
-    
-    $elapsed = (Get-Date) - $startTime
-    $avgTimePerLetter = $elapsed.TotalSeconds / $letterIndex
-    $remainingLetters = $totalLetters - $letterIndex
-    $estimatedRemaining = [TimeSpan]::FromSeconds($avgTimePerLetter * $remainingLetters)
-    
-    Write-Host "Progress: $($allCompanies.Count) companies | Elapsed: $($elapsed.ToString('mm\:ss')) | ETA: $($estimatedRemaining.ToString('mm\:ss'))" -ForegroundColor DarkCyan
+}
+# ═══════════════════════════════════════════════════════════════════════════════
+# STANDARD MODE: Scrape from letter index pages
+# ═══════════════════════════════════════════════════════════════════════════════
+else {
+    Write-Host "Processing letters: $($Letters -join ', ')" -ForegroundColor Yellow
+
+    $totalLetters = $Letters.Count
+    $letterIndex = 0
+
+    foreach ($letter in $Letters) {
+        $letterIndex++
+        Write-Host "`n[$letterIndex/$totalLetters] Processing letter: $letter" -ForegroundColor Magenta
+
+        $letterCompanies = Get-CompaniesFromLetter -Letter $letter
+        $allCompanies += $letterCompanies
+
+        if ($letterCompanies.Count -gt 0) {
+            $letterFile = Join-Path $outputDir "Letter_$letter.csv"
+            $letterCompanies | Export-Csv -Path $letterFile -NoTypeInformation
+            Write-Host "Saved to: $letterFile" -ForegroundColor Gray
+        }
+
+        $elapsed = (Get-Date) - $startTime
+        $avgTimePerLetter = $elapsed.TotalSeconds / $letterIndex
+        $remainingLetters = $totalLetters - $letterIndex
+        $estimatedRemaining = [TimeSpan]::FromSeconds($avgTimePerLetter * $remainingLetters)
+
+        Write-Host "Progress: $($allCompanies.Count) companies | Elapsed: $($elapsed.ToString('mm\:ss')) | ETA: $($estimatedRemaining.ToString('mm\:ss'))" -ForegroundColor DarkCyan
+    }
 }
 
 # Save all results
