@@ -697,35 +697,138 @@
         });
 
 
+        // SHARED strict category patterns - based on VicRoads Pre-qualification Register (Dec 2025)
+        // Includes both current codes and legacy/retired codes for backwards compatibility
+        function getValidCategoryPatterns() {
+            return [
+                // === ROAD AND BRIDGE CONSTRUCTION WORKS ===
+                // Road Construction: R1-R5
+                /\b(R[1-5])\b/g,
+                // Bridge Construction: B1-B4
+                /\b(B[1-4])\b/g,
+
+                // === MAINTENANCE & SPECIALIST WORKS ===
+                // Maintenance: M1 (retiring), M2-PW, M2-BW, M2-RW
+                /\b(M1|M2-BW|M2-PW|M2-RW)\b/gi,
+                // Specialist Works: G1, G2-SB (new), G2-GF (old), G2-GC, G2-SE, G2-STW
+                /\b(G1|G2-(?:SB|GF|GC|SE|STW))\b/gi,
+                // Specialist Works: S2-LM, S2-LS, S2-NW, S2-RSA, S2-RSS
+                /\b(S2-(?:LM|LS|NW|RSA|RSS))\b/gi,
+
+                // === ROAD & BRIDGE DESIGN SERVICES ===
+                // Road Design: RR, UR, FD
+                /\b(RR|UR|FD)\b/g,
+                // Water Sensitive Road Design: WSRD/WRSD
+                /\b(WSRD|WRSD)\b/gi,
+                // Hydrologic & Hydraulic Design: SH (retiring), CH (now DHHD), DHHD (new)
+                /\b(SH|CH|DHHD)\b/gi,
+                // Bridge Inspection: BI2
+                /\b(BI\s?2)\b/gi,
+                // Bridge/Structures Design: SS, CS
+                /\b(SS|CS)\b/g,
+                // Proof Engineering: PE
+                /\b(PE)\b/g,
+
+                // === PAVEMENT & GEOTECHNICAL ENGINEERING ===
+                // Pavement Design (new): FPD1, FPD2, RPD
+                /\b(FPD[1-2]|RPD)\b/gi,
+                // Pavement Design (legacy): ND1, ND2, ND3
+                /\b(ND[1-3])\b/g,
+                // Pavement Rehabilitation (new): FPR, RPR
+                /\b(FPR|RPR)\b/gi,
+                // Pavement Rehabilitation (legacy): RM1, RM2, RM3, RM4
+                /\b(RM[1-4])\b/g,
+                // Pavement Investigation (retiring): PT1, PT2
+                /\b(PT[1-2])\b/g,
+                // Geotechnical: GT-INV, GT-DES, GT-GWH, GT-PST, GT-PRE
+                /\b(GT-(?:INV|DES|GWH|PST|PRE))\b/gi,
+
+                // === TRAFFIC MANAGEMENT SERVICES (CONSULTANTS) ===
+                // Data Acquisition (retiring): DMR, DBS, DSD
+                /\b(DMR|DBS|DSD)\b/gi,
+                // Traffic/Transport Planning: PRN, PRS, PRL, PAM (retiring), PTN, PTC (new)
+                /\b(PRN|PRS|PRL|PAM|PTN|PTC)\b/gi,
+                // Traffic Operations: TOS, TOF, TAR, TTF, TPF, TSM, TCA, TMC, TSD, TLD
+                /\b(TOS|TOF|TAR|TTF|TPF|TSM|TCA|TMC|TSD|TLD)\b/gi,
+                // Freight & Vehicle: FVA, FIR, FVR (retiring)
+                /\b(FVA|FIR|FVR)\b/gi,
+                // Road Safety Audits: RSAUDIT
+                /\b(RSAUDIT)\b/gi,
+                // Traffic Data Collection: CCS, CCC, CTT, CTM, COS, CSS
+                /\b(CCS|CCC|CTT|CTM|COS|CSS)\b/gi,
+
+                // === ENVIRONMENT ===
+                // Air: E-AQMD
+                /\b(E-AQMD)\b/gi,
+                // Biodiversity: E-AFF, E-TFL
+                /\b(E-(?:AFF|TFL))\b/gi,
+                // Environmental Assessment: E-EAC, E-EMS
+                /\b(E-(?:EAC|EMS))\b/gi,
+                // Noise & Vibration: E-NMD
+                /\b(E-NMD)\b/gi,
+
+                // === TRAFFIC MANAGEMENT SERVICES (CONTRACTORS) ===
+                // Traffic Signals: STS (new combined), STS1, STS2 (legacy)
+                /\b(STS\d?)\b/gi,
+                // Traffic Control Equipment: STCE (new), STCE1, STCE2, STCE3 (legacy)
+                /\b(STCE\d?)\b/gi,
+                // Street Lighting & Conduit: SSLC
+                /\b(SSLC)\b/gi,
+                // CCTV: SCTV
+                /\b(SCTV)\b/gi,
+                // Vehicle Detection Loop: SVDL
+                /\b(SVDL)\b/gi,
+
+                // === TRANSPORT & PLANNING STUDIES ===
+                // Strategic Planning (retiring): ST, HC
+                /\b(ST|HC)\b/g,
+                // Planning Study Management (retiring): EESM, PSAM, EPM
+                /\b(EESM|PSAM|EPM)\b/gi,
+                // Planning Documentation (retiring): EESW, PAR, PSAD
+                /\b(EESW|PAR|PSAD)\b/gi,
+                // Specialist Studies (retiring): AG, CE, CF, CI, EA, LVI, LU, RE, RM, SI, TM, PNM
+                /\b(AG|CE|CF|CI|EA|LVI|LU|RE|SI|TM|PNM)\b/g,
+
+                // === SURVEILLANCE (retiring) ===
+                /\b(SEC|SMW|SRW|SSW)\b/gi,
+
+                // === FINANCIAL PREQUALIFICATION ===
+                /\b(F\d{3}\+?|F150\+?)\b/g
+            ];
+        }
+
+        // Helper function to extract categories from a company using strict patterns
+        function extractCompanyCategories(company) {
+            const companyCats = new Set();
+            const validPatterns = getValidCategoryPatterns();
+
+            categoryFields.forEach(field => {
+                const value = company[field] || '';
+                if (!value) return;
+                const cleanValue = value.replace(/Categories:\s*/g, '').replace(/Levels:\s*/g, '');
+
+                validPatterns.forEach(pattern => {
+                    // Reset pattern lastIndex for global patterns
+                    pattern.lastIndex = 0;
+                    const matches = [...cleanValue.matchAll(pattern)];
+                    matches.forEach(match => {
+                        let cat = (match[1] || match[0]).toUpperCase();
+                        if (cat && cat.length >= 2) {
+                            companyCats.add(cat);
+                        }
+                    });
+                });
+            });
+
+            return companyCats;
+        }
+
         function updateCategoryCounts() {
             // Build a map of category => count for filteredData
             const catCountMap = new Map();
 
             filteredData.forEach(company => {
-                const companyCats = new Set();
-                categoryFields.forEach(field => {
-                    const value = company[field] || '';
-                    if (!value) return;
-                    const cleanValue = value.replace(/Categories:\s*/g, '').replace(/Levels:\s*/g, '');
-                    const patterns = [
-                        /\b([A-Z]+\d+(?:-[A-Z]+)?)\b/g,
-                        /\b(SCTV|SSLC|STCE|STS|SVDL)\b/g,
-                        /\b([A-Z]+)\s+(\d+)\b/g,
-                        /\b(M\d+(?:-[A-Z]+)?)\b/g,
-                        /\b(R\d+)\b/g,
-                        /\b(B\d+)\b/g,
-                        /\b(F\d+\+?)\b/g
-                    ];
-                    patterns.forEach(pattern => {
-                        const matches = [...cleanValue.matchAll(pattern)];
-                        matches.forEach(match => {
-                            let foundCat = match[0].replace(/\s+(\d+)/, '$1');
-                            if (foundCat && foundCat.length > 1) {
-                                companyCats.add(foundCat.toUpperCase());
-                            }
-                        });
-                    });
-                });
+                const companyCats = extractCompanyCategories(company);
                 companyCats.forEach(cat => {
                     catCountMap.set(cat, (catCountMap.get(cat) || 0) + 1);
                 });
@@ -914,86 +1017,8 @@
         function extractAllCategories() {
             allCategories.clear();
 
-            // STRICT valid category patterns - only match known VicRoads prequalification codes
-            const validPatterns = [
-                // Maintenance: M1, M2-BW, M2-PW, M2-RW
-                /\b(M1|M2-BW|M2-PW|M2-RW)\b/gi,
-
-                // Road Construction: R1-R5
-                /\b(R[1-5])\b/g,
-
-                // Bridge Construction: B1-B4
-                /\b(B[1-4])\b/g,
-
-                // Financial: F001, F002, F005, F010, F020, F050, F100, F150, F150+
-                /\b(F\d{3}\+?|F150\+?)\b/g,
-
-                // Traffic/Signals: SCTV, SSLC, STCE, STCE1, STCE2, STS, STS1, STS2, SVDL, SOED
-                /\b(SCTV|SSLC|STCE\d?|STS\d?|SVDL|SOED)\b/gi,
-
-                // Geotechnical: GT-DES, GT-INV, GT-PRE, GT-GWH
-                /\b(GT-(?:DES|INV|PRE|GWH))\b/gi,
-
-                // Pavement Design: ND1, ND2, ND3 (New Design)
-                /\b(ND[1-3])\b/g,
-
-                // Rehabilitation: RM1, RM2, RM3, RM4
-                /\b(RM[1-4])\b/g,
-
-                // Pavement Testing: PT1, PT2
-                /\b(PT[1-2])\b/g,
-
-                // Hydraulic Design: SH (Simple), CH (Complex)
-                /\b(SH|CH)\b/g,
-
-                // Structures Design: SS (Simple), CS (Complex), PE (Proof Engineering)
-                /\b(SS|CS|PE)\b/g,
-
-                // Road Design: RR (Rural Road), UR (Urban Road), FD (Freeways)
-                /\b(RR|UR|FD)\b/g,
-
-                // Water Sensitive: WSRD
-                /\b(WSRD)\b/gi,
-
-                // Environmental: E-XXX codes
-                /\b(E-(?:AQM|AFF|TFL|EAC|EMS|NMD|AQMD))\b/gi,
-
-                // Planning Studies: ST, HC, EPM, EESM, PSAM, PSAD, EESW, PAR
-                /\b(ST|HC|EPM|EESM|PSAM|PSAD|EESW|PAR)\b/g,
-
-                // Transport/Traffic Planning codes
-                /\b(DBS|DMR|DSD|PAM|PRL|PRN|PRS|TAR|TCA|TLD|TMC|TOF|TOS|TPF|TSD|TSM|TTF|FIR|FVR|RSAUDIT)\b/gi,
-
-                // Specialist Studies
-                /\b(CE|EA|LU|LVI|PNM|RE|RM|SI|TM)\b/g,
-
-                // General Works: G1, G2-RSA, G2-GF, G2-SE
-                /\b(G1|G2-(?:RSA|GF|SE))\b/gi
-            ];
-
             allData.forEach(company => {
-                const companyCategories = new Set();
-
-                categoryFields.forEach(field => {
-                    const value = company[field] || '';
-                    if (!value) return;
-
-                    // Clean the value
-                    const cleanValue = value.replace(/Categories:\s*/g, '').replace(/Levels:\s*/g, '');
-
-                    // Apply strict patterns only
-                    validPatterns.forEach(pattern => {
-                        const matches = [...cleanValue.matchAll(pattern)];
-                        matches.forEach(match => {
-                            let cat = match[1] || match[0];
-                            cat = cat.toUpperCase();
-                            if (cat && cat.length >= 2) {
-                                companyCategories.add(cat);
-                            }
-                        });
-                    });
-                });
-
+                const companyCategories = extractCompanyCategories(company);
                 companyCategories.forEach(cat => {
                     allCategories.set(cat, (allCategories.get(cat) || 0) + 1);
                 });
@@ -1005,50 +1030,197 @@
         function createFilterSections() {
             const container = document.getElementById('preqSections');
             container.innerHTML = '';
-            
-            // Group categories
-            const trafficCats = [];
-            const maintenanceCats = [];
-            const roadCats = [];
-            const bridgeCats = [];
-            const financialCats = [];
-            const generalCats = [];
-            
+
+            // Groups based on VicRoads Pre-qualification Register (December 2025)
+            const groups = {
+                // === ROAD AND BRIDGE CONSTRUCTION WORKS ===
+                roadConstruction: {
+                    title: 'Road Construction (R1-R5)',
+                    cats: [],
+                    codes: ['R1', 'R2', 'R3', 'R4', 'R5']
+                },
+                bridgeConstruction: {
+                    title: 'Bridge Construction (B1-B4)',
+                    cats: [],
+                    codes: ['B1', 'B2', 'B3', 'B4']
+                },
+
+                // === MAINTENANCE & SPECIALIST WORKS ===
+                maintenance: {
+                    title: 'Maintenance Works',
+                    cats: [],
+                    codes: ['M1', 'M2-PW', 'M2-BW', 'M2-RW', 'M2']
+                },
+                specialistWorks: {
+                    title: 'Specialist Works',
+                    cats: [],
+                    codes: ['G1', 'G2-SB', 'G2-GF', 'G2-GC', 'G2-SE', 'G2-STW', 'G2', 'S2-LM', 'S2-LS', 'S2-NW', 'S2-RSA', 'S2-RSS', 'S2']
+                },
+
+                // === ROAD & BRIDGE DESIGN SERVICES ===
+                roadDesign: {
+                    title: 'Road Design',
+                    cats: [],
+                    codes: ['RR', 'UR', 'FD', 'WSRD', 'WRSD']
+                },
+                hydraulicDesign: {
+                    title: 'Hydrologic & Hydraulic Design',
+                    cats: [],
+                    codes: ['SH', 'CH', 'DHHD']
+                },
+                bridgeDesign: {
+                    title: 'Bridge Design & Inspection',
+                    cats: [],
+                    codes: ['SS', 'CS', 'PE', 'BI']
+                },
+
+                // === PAVEMENT & GEOTECHNICAL ENGINEERING ===
+                pavementDesign: {
+                    title: 'Pavement Design',
+                    cats: [],
+                    codes: ['FPD1', 'FPD2', 'RPD', 'ND1', 'ND2', 'ND3', 'FPD', 'ND']
+                },
+                pavementRehab: {
+                    title: 'Pavement Rehabilitation',
+                    cats: [],
+                    codes: ['FPR', 'RPR', 'RM1', 'RM2', 'RM3', 'RM4', 'RM']
+                },
+                pavementInvestigation: {
+                    title: 'Pavement Investigation',
+                    cats: [],
+                    codes: ['PT1', 'PT2', 'PT']
+                },
+                geotechnical: {
+                    title: 'Geotechnical Services',
+                    cats: [],
+                    codes: ['GT-INV', 'GT-DES', 'GT-GWH', 'GT-PST', 'GT-PRE', 'GT-']
+                },
+
+                // === TRAFFIC MANAGEMENT SERVICES (CONSULTANTS) ===
+                trafficPlanning: {
+                    title: 'Traffic/Transport Planning',
+                    cats: [],
+                    codes: ['PRN', 'PRS', 'PRL', 'PAM', 'PTN', 'PTC']
+                },
+                trafficOperations: {
+                    title: 'Traffic Operations',
+                    cats: [],
+                    codes: ['TOS', 'TOF', 'TAR', 'TTF', 'TPF', 'TSM', 'TCA', 'TMC', 'TSD', 'TLD']
+                },
+                dataAcquisition: {
+                    title: 'Data Acquisition & Analysis',
+                    cats: [],
+                    codes: ['DMR', 'DBS', 'DSD']
+                },
+                trafficDataCollection: {
+                    title: 'Traffic Data Collection',
+                    cats: [],
+                    codes: ['CCS', 'CCC', 'CTT', 'CTM', 'COS', 'CSS']
+                },
+                freightVehicle: {
+                    title: 'Freight & Vehicle Operations',
+                    cats: [],
+                    codes: ['FVA', 'FIR', 'FVR']
+                },
+                roadSafetyAudit: {
+                    title: 'Road Safety Audits',
+                    cats: [],
+                    codes: ['RSAUDIT']
+                },
+
+                // === TRAFFIC MANAGEMENT SERVICES (CONTRACTORS) ===
+                trafficSignals: {
+                    title: 'Traffic Signals & Control',
+                    cats: [],
+                    codes: ['STS', 'STS1', 'STS2', 'STCE', 'STCE1', 'STCE2', 'STCE3', 'SSLC', 'SCTV', 'SVDL']
+                },
+
+                // === ENVIRONMENT ===
+                environmental: {
+                    title: 'Environment',
+                    cats: [],
+                    codes: ['E-AQMD', 'E-AFF', 'E-TFL', 'E-EAC', 'E-EMS', 'E-NMD', 'E-']
+                },
+
+                // === TRANSPORT & PLANNING STUDIES ===
+                strategicPlanning: {
+                    title: 'Strategic Planning',
+                    cats: [],
+                    codes: ['ST', 'HC']
+                },
+                planningStudy: {
+                    title: 'Planning Study Management',
+                    cats: [],
+                    codes: ['EESM', 'PSAM', 'EPM', 'EESW', 'PAR', 'PSAD']
+                },
+                specialistStudies: {
+                    title: 'Specialist Studies',
+                    cats: [],
+                    codes: ['AG', 'CE', 'CF', 'CI', 'EA', 'LVI', 'LU', 'RE', 'SI', 'TM', 'PNM']
+                },
+
+                // === SURVEILLANCE ===
+                surveillance: {
+                    title: 'Surveillance',
+                    cats: [],
+                    codes: ['SEC', 'SMW', 'SRW', 'SSW']
+                },
+
+                // === FINANCIAL ===
+                financial: {
+                    title: 'Financial Prequalification',
+                    cats: [],
+                    codes: ['F0', 'F1', 'F2', 'F5']
+                },
+
+                // === OTHER ===
+                other: { title: 'Other', cats: [] }
+            };
+
             allCategories.forEach((count, cat) => {
-                if (cat.startsWith('S')) {
-                    trafficCats.push([cat, count]);
-                } else if (cat.startsWith('M')) {
-                    maintenanceCats.push([cat, count]);
-                } else if (cat.startsWith('R')) {
-                    roadCats.push([cat, count]);
-                } else if (cat.startsWith('B')) {
-                    bridgeCats.push([cat, count]);
-                } else if (cat.startsWith('F')) {
-                    financialCats.push([cat, count]);
-                } else {
-                    generalCats.push([cat, count]);
+                let assigned = false;
+
+                // Check each group's codes
+                for (const [groupKey, group] of Object.entries(groups)) {
+                    if (groupKey === 'other') continue;
+
+                    for (const code of group.codes) {
+                        if (cat === code || cat.startsWith(code)) {
+                            group.cats.push([cat, count]);
+                            assigned = true;
+                            break;
+                        }
+                    }
+                    if (assigned) break;
+                }
+
+                // If not assigned, put in 'other'
+                if (!assigned) {
+                    groups.other.cats.push([cat, count]);
                 }
             });
-            
-            // Create sections
-            if (trafficCats.length > 0) {
-                createSection('🚦 Traffic & Signals', trafficCats);
-            }
-            if (maintenanceCats.length > 0) {
-                createSection('🔧 Maintenance', maintenanceCats);
-            }
-            if (roadCats.length > 0) {
-                createSection('🛣️ Road Construction', roadCats);
-            }
-            if (bridgeCats.length > 0) {
-                createSection('🌉 Bridge Construction', bridgeCats);
-            }
-            if (financialCats.length > 0) {
-                createSection('💰 Financial Levels', financialCats);
-            }
-            if (generalCats.length > 0) {
-                createSection('📋 General & Other', generalCats);
-            }
+
+            // Create sections for non-empty groups - order matches VicRoads document structure
+            const sectionOrder = [
+                'roadConstruction', 'bridgeConstruction',
+                'maintenance', 'specialistWorks',
+                'roadDesign', 'hydraulicDesign', 'bridgeDesign',
+                'pavementDesign', 'pavementRehab', 'pavementInvestigation', 'geotechnical',
+                'trafficPlanning', 'trafficOperations', 'dataAcquisition', 'trafficDataCollection', 'freightVehicle', 'roadSafetyAudit',
+                'trafficSignals',
+                'environmental',
+                'strategicPlanning', 'planningStudy', 'specialistStudies',
+                'surveillance',
+                'financial',
+                'other'
+            ];
+
+            sectionOrder.forEach(groupKey => {
+                const group = groups[groupKey];
+                if (group.cats.length > 0) {
+                    createSection(group.title, group.cats);
+                }
+            });
         }
 
         function createSection(title, categories) {
@@ -1159,65 +1331,16 @@
                 if (emailFilter === 'yes' && !company.Email) return false;
                 if (emailFilter === 'no' && company.Email) return false;
 
+                // Use shared helper to get company categories (strict patterns only)
+                const companyCats = extractCompanyCategories(company);
+
                 // Category dropdown filter
                 if (categoryFilter) {
-                    const companyCatsForDropdown = new Set();
-                    categoryFields.forEach(field => {
-                        const value = company[field] || '';
-                        if (!value) return;
-                        const cleanValue = value.replace(/Categories:\s*/g, '').replace(/Levels:\s*/g, '');
-                        const patterns = [
-                            /\b([A-Z]+\d+(?:-[A-Z]+)?)\b/g,
-                            /\b(SCTV|SSLC|STCE|STS|SVDL)\b/g,
-                            /\b([A-Z]+)\s+(\d+)\b/g,
-                            /\b(M\d+(?:-[A-Z]+)?)\b/g,
-                            /\b(R\d+)\b/g,
-                            /\b(B\d+)\b/g,
-                            /\b(F\d+\+?)\b/g
-                        ];
-                        patterns.forEach(pattern => {
-                            const matches = [...cleanValue.matchAll(pattern)];
-                            matches.forEach(match => {
-                                let cat = match[0];
-                                cat = cat.replace(/\s+(\d+)/, '$1');
-                                if (cat && cat.length > 1) {
-                                    companyCatsForDropdown.add(cat.toUpperCase());
-                                }
-                            });
-                        });
-                    });
-                    if (!companyCatsForDropdown.has(categoryFilter.toUpperCase())) return false;
+                    if (!companyCats.has(categoryFilter.toUpperCase())) return false;
                 }
 
                 // Category filter with true AND/OR logic (tag-based)
                 if (activePreqFilters.size > 0) {
-                    // Gather all categories for this company
-                    const companyCats = new Set();
-                    categoryFields.forEach(field => {
-                        const value = company[field] || '';
-                        if (!value) return;
-                        const cleanValue = value.replace(/Categories:\s*/g, '').replace(/Levels:\s*/g, '');
-                        const patterns = [
-                            /\b([A-Z]+\d+(?:-[A-Z]+)?)\b/g,
-                            /\b(SCTV|SSLC|STCE|STS|SVDL)\b/g,
-                            /\b([A-Z]+)\s+(\d+)\b/g,
-                            /\b(M\d+(?:-[A-Z]+)?)\b/g,
-                            /\b(R\d+)\b/g,
-                            /\b(B\d+)\b/g,
-                            /\b(F\d+\+?)\b/g
-                        ];
-                        patterns.forEach(pattern => {
-                            const matches = [...cleanValue.matchAll(pattern)];
-                            matches.forEach(match => {
-                                let cat = match[0];
-                                cat = cat.replace(/\s+(\d+)/, '$1');
-                                if (cat && cat.length > 1) {
-                                    companyCats.add(cat.toUpperCase());
-                                }
-                            });
-                        });
-                    });
-
                     if (preqFilterMode === 'OR') {
                         // At least one selected category must be present
                         let found = false;
@@ -1359,40 +1482,10 @@
                 locationCell.textContent = locationParts.length > 0 ? locationParts.join(', ') : '-';
                 row.appendChild(locationCell);
 
-                // Categories - extract and display
+                // Categories - use shared helper for strict pattern matching
                 const catCell = document.createElement('td');
-                const allCats = new Set();
-                
-                categoryFields.forEach(field => {
-                    const value = company[field] || '';
-                    if (!value) return;
-                    
-                    const cleanValue = value.replace(/Categories:\s*/g, '').replace(/Levels:\s*/g, '');
-                    
-                    // Extract categories with multiple patterns
-                    const patterns = [
-                        /\b([A-Z]+\d+(?:-[A-Z]+)?)\b/g,
-                        /\b(SCTV|SSLC|STCE|STS|SVDL)\b/g,
-                        /\b([A-Z]+)\s+(\d+)\b/g,
-                        /\b(M\d+(?:-[A-Z]+)?)\b/g,
-                        /\b(R\d+)\b/g,
-                        /\b(B\d+)\b/g,
-                        /\b(F\d+\+?)\b/g
-                    ];
-                    
-                    patterns.forEach(pattern => {
-                        const matches = [...cleanValue.matchAll(pattern)];
-                        matches.forEach(match => {
-                            let cat = match[0];
-                            // Normalize spaces
-                            cat = cat.replace(/\s+(\d+)/, '$1');
-                            if (cat && cat.length > 1) {
-                                allCats.add(cat);
-                            }
-                        });
-                    });
-                });
-                
+                const allCats = extractCompanyCategories(company);
+
                 if (allCats.size > 0) {
                     const badges = Array.from(allCats).sort().map(cat => {
                         let badgeClass = 'preq-badge';

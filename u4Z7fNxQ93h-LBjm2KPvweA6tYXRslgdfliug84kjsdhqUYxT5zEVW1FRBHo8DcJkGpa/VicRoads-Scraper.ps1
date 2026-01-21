@@ -300,15 +300,48 @@ function Get-CompanyDetails {
                     if ($categoryName -and $levels) {
                         $categoryEntries += "$categoryName`: $levels"
 
-                        # Also extract category codes for the flat categories list
+                        # COMPREHENSIVE category code patterns - VicRoads Pre-qualification Register (Dec 2025)
+                        # Includes both current codes and legacy/retired codes
                         $codePatterns = @(
-                            'M\d+(?:-[A-Z]+)?',
-                            'R\d+',
-                            'B\d+',
-                            'F\d+\+?',
-                            'SCTV|SSLC|STCE\d*|STS\d*|SVDL|SOED',
-                            '[A-Z]+-[A-Z]+',
-                            '\b[A-Z]{2,4}\d*\b'
+                            # Road and Bridge Construction
+                            '\bR[1-5]\b',                                              # Road Construction R1-R5
+                            '\bB[1-4]\b',                                              # Bridge Construction B1-B4
+                            # Maintenance & Specialist Works
+                            '\b(M1|M2-BW|M2-PW|M2-RW)\b',                              # Maintenance
+                            '\b(G1|G2-(?:SB|GF|GC|SE|STW))\b',                         # General/Specialist Works (incl G2-SB new, G2-GF old)
+                            '\b(S2-(?:LM|LS|NW|RSA|RSS))\b',                           # Specialist S2 codes
+                            # Road & Bridge Design Services
+                            '\b(RR|UR|FD)\b',                                          # Road Design
+                            '\b(WSRD|WRSD)\b',                                         # Water Sensitive Road Design
+                            '\b(SH|CH|DHHD)\b',                                        # Hydraulic Design (SH/CH retiring, DHHD new)
+                            '\b(BI\s?2)\b',                                            # Bridge Inspection
+                            '\b(SS|CS|PE)\b',                                          # Structures Design & Proof Engineering
+                            # Pavement & Geotechnical
+                            '\b(FPD[1-2]|RPD)\b',                                      # Pavement Design (new)
+                            '\bND[1-3]\b',                                             # Pavement Design (legacy)
+                            '\b(FPR|RPR)\b',                                           # Pavement Rehabilitation (new)
+                            '\bRM[1-4]\b',                                             # Pavement Rehabilitation (legacy)
+                            '\bPT[1-2]\b',                                             # Pavement Investigation
+                            '\b(GT-(?:INV|DES|GWH|PST|PRE))\b',                        # Geotechnical (incl GT-PST)
+                            # Traffic Management (Consultants)
+                            '\b(DMR|DBS|DSD)\b',                                       # Data Acquisition
+                            '\b(PRN|PRS|PRL|PAM|PTN|PTC)\b',                           # Traffic/Transport Planning (incl PTN/PTC new)
+                            '\b(TOS|TOF|TAR|TTF|TPF|TSM|TCA|TMC|TSD|TLD)\b',           # Traffic Operations
+                            '\b(FVA|FIR|FVR)\b',                                       # Freight & Vehicle
+                            '\bRSAUDIT\b',                                             # Road Safety Audits
+                            '\b(CCS|CCC|CTT|CTM|COS|CSS)\b',                           # Traffic Data Collection
+                            # Traffic Management (Contractors)
+                            '\b(SCTV|SSLC|STCE\d?|STS\d?|SVDL)\b',                     # Traffic Control Systems
+                            # Environment
+                            '\b(E-(?:AQMD|AFF|TFL|EAC|EMS|NMD))\b',                    # Environmental codes
+                            # Transport & Planning Studies
+                            '\b(ST|HC)\b',                                             # Strategic Planning
+                            '\b(EESM|PSAM|EPM|EESW|PAR|PSAD)\b',                       # Planning Study
+                            '\b(AG|CE|CF|CI|EA|LVI|LU|RE|SI|TM|PNM)\b',                # Specialist Studies
+                            # Surveillance
+                            '\b(SEC|SMW|SRW|SSW)\b',                                   # Surveillance
+                            # Financial
+                            '\bF\d{3}\+?\b'                                            # Financial F001-F150+
                         )
                         foreach ($codePattern in $codePatterns) {
                             $codeMatches = [regex]::Matches($levels, $codePattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
@@ -341,12 +374,46 @@ function Get-CompanyDetails {
             # ═══════════════════════════════════════════════════════════════════
 
             if (-not $company.PrequalificationCategories) {
+                # COMPREHENSIVE fallback patterns - same as main extraction (VicRoads Dec 2025)
                 $fallbackPatterns = @(
-                    '\bM\d+(?:-[A-Z]+)?\b',
-                    '\bR\d+\b',
-                    '\bB\d+\b',
-                    '\bF\d+\+?\b',
-                    '\b(SCTV|SSLC|STCE\d*|STS\d*|SVDL|SOED)\b'
+                    # Road and Bridge Construction
+                    '\bR[1-5]\b',
+                    '\bB[1-4]\b',
+                    # Maintenance & Specialist Works
+                    '\b(M1|M2-BW|M2-PW|M2-RW)\b',
+                    '\b(G1|G2-(?:SB|GF|GC|SE|STW))\b',
+                    '\b(S2-(?:LM|LS|NW|RSA|RSS))\b',
+                    # Road & Bridge Design
+                    '\b(RR|UR|FD)\b',
+                    '\b(WSRD|WRSD)\b',
+                    '\b(SH|CH|DHHD)\b',
+                    '\b(BI\s?2)\b',
+                    '\b(SS|CS|PE)\b',
+                    # Pavement & Geotechnical
+                    '\b(FPD[1-2]|RPD)\b',
+                    '\bND[1-3]\b',
+                    '\b(FPR|RPR)\b',
+                    '\bRM[1-4]\b',
+                    '\bPT[1-2]\b',
+                    '\b(GT-(?:INV|DES|GWH|PST|PRE))\b',
+                    # Traffic Management
+                    '\b(DMR|DBS|DSD)\b',
+                    '\b(PRN|PRS|PRL|PAM|PTN|PTC)\b',
+                    '\b(TOS|TOF|TAR|TTF|TPF|TSM|TCA|TMC|TSD|TLD)\b',
+                    '\b(FVA|FIR|FVR)\b',
+                    '\bRSAUDIT\b',
+                    '\b(CCS|CCC|CTT|CTM|COS|CSS)\b',
+                    '\b(SCTV|SSLC|STCE\d?|STS\d?|SVDL)\b',
+                    # Environment
+                    '\b(E-(?:AQMD|AFF|TFL|EAC|EMS|NMD))\b',
+                    # Planning Studies
+                    '\b(ST|HC)\b',
+                    '\b(EESM|PSAM|EPM|EESW|PAR|PSAD)\b',
+                    '\b(AG|CE|CF|CI|EA|LVI|LU|RE|SI|TM|PNM)\b',
+                    # Surveillance
+                    '\b(SEC|SMW|SRW|SSW)\b',
+                    # Financial
+                    '\bF\d{3}\+?\b'
                 )
 
                 $fallbackCats = @()
