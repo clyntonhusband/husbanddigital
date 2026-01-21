@@ -1,9 +1,15 @@
 ﻿# VicRoads Prequalified Contractors Web Scraper v3
 # Enhanced to capture all prequalification categories including Road & Bridge
+#
+# USAGE:
+#   .\VicRoads-Scraper.ps1                           # Use cached HTML files (fast)
+#   .\VicRoads-Scraper.ps1 -ForceRefresh             # Download fresh from website
+#   .\VicRoads-Scraper.ps1 -Letters @('A','B')       # Only process specific letters
+#   .\VicRoads-Scraper.ps1 -ForceRefresh -Letters @('A')  # Fresh download, letter A only
 
 param(
-    [switch]$ForceRefresh,
-    [string[]]$Letters = @()
+    [switch]$ForceRefresh,      # If set, re-download all HTML files; otherwise use cached
+    [string[]]$Letters = @()    # Specific letters to process (default: all A-Z)
 )
 
 # Set default letters if none specified
@@ -20,12 +26,19 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "VicRoads Data Extraction v3 - Enhanced" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Output directory: $outputDir" -ForegroundColor Yellow
+Write-Host "Letters to process: $($Letters -join ', ')" -ForegroundColor Yellow
 
+Write-Host ""
 if ($ForceRefresh) {
-    Write-Host "MODE: FORCE REFRESH - Will re-download all files" -ForegroundColor Magenta
+    Write-Host "MODE: FORCE REFRESH" -ForegroundColor Magenta
+    Write-Host "  -> Will re-download ALL HTML files from VicRoads website" -ForegroundColor Magenta
 } else {
-    Write-Host "MODE: SMART CACHE - Will skip existing HTML files" -ForegroundColor Cyan
+    Write-Host "MODE: USE CACHED FILES" -ForegroundColor Green
+    Write-Host "  -> Will use existing HTML files in VicRoads_Data folder" -ForegroundColor Green
+    Write-Host "  -> Only downloads if file doesn't exist" -ForegroundColor Green
+    Write-Host "  -> To force fresh download, run: .\VicRoads-Scraper.ps1 -ForceRefresh" -ForegroundColor DarkGray
 }
+Write-Host ""
 
 $debugLog = Join-Path $outputDir "debug.log"
 "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Starting extraction" | Out-File -FilePath $debugLog -Append
@@ -41,25 +54,36 @@ function Get-CompanyDetails {
         [string]$CompanyUrl,
         [string]$CompanyName
     )
-    
+
     try {
         $safeFileName = $CompanyName -replace '[^\w]', '_'
         $htmlFile = Join-Path $outputDir "raw_html_$safeFileName.html"
-        
+
         $bodyHtml = $null
         $dataSource = "Fresh"
-        
+
         if ((Test-Path $htmlFile) -and -not $ForceRefresh) {
             Write-Host "  ✓ Using cached: $CompanyName" -ForegroundColor DarkYellow
             Write-DebugLog "Using cached HTML: $htmlFile"
-            $bodyHtml = Get-Content $htmlFile -Raw
+            # Try reading with different encodings to handle UTF-16
+            try {
+                $bodyHtml = Get-Content $htmlFile -Raw -Encoding Unicode
+                # Check if we got the spaced-out UTF-16 format and fix it
+                if ($bodyHtml -match '< \! D O C T Y P E') {
+                    # Remove null bytes/spaces between characters
+                    $bodyHtml = $bodyHtml -replace '\x00', ''
+                }
+            }
+            catch {
+                $bodyHtml = Get-Content $htmlFile -Raw
+            }
             $dataSource = "Cached"
             $extractDate = (Get-Item $htmlFile).LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
         }
         else {
             Write-Host "  ↓ Downloading: $CompanyName" -ForegroundColor Cyan
             Write-DebugLog "Fetching URL: $CompanyUrl"
-            
+
             try {
                 $response = Invoke-WebRequest -Uri $CompanyUrl -UseBasicParsing
                 $bodyHtml = $response.Content
@@ -69,221 +93,274 @@ function Get-CompanyDetails {
                 $ie = New-Object -ComObject InternetExplorer.Application
                 $ie.Visible = $false
                 $ie.Navigate($CompanyUrl)
-                
+
                 while ($ie.Busy -or $ie.ReadyState -ne 4) {
                     Start-Sleep -Milliseconds 100
                 }
-                
+
                 $doc = $ie.Document
                 $bodyHtml = $doc.body.innerHTML
                 $ie.Quit()
                 [System.Runtime.Interopservices.Marshal]::ReleaseComObject($ie) | Out-Null
             }
-            
+
             if ($bodyHtml) {
-                $bodyHtml | Out-File -FilePath $htmlFile
+                # Save as UTF-8 for consistency
+                $bodyHtml | Out-File -FilePath $htmlFile -Encoding UTF8
                 Write-DebugLog "Saved HTML to: $htmlFile (Length: $($bodyHtml.Length))"
             }
-            
+
             $extractDate = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
         }
-        
+
         $company = [PSCustomObject]@{
             Name = $CompanyName
             Url = $CompanyUrl
             DataSource = $dataSource
             ExtractedDate = $extractDate
         }
-        
+
         if ($bodyHtml) {
-            # Enhanced parsing for all table patterns
-            # Pattern 1: Standard table rows
-            $tablePattern = '<tr[^>]*>.*?<td[^>]*>(.*?)</td>.*?<td[^>]*>(.*?)</td>.*?</tr>'
-            $tableMatches = [regex]::Matches($bodyHtml, $tablePattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Singleline)
-            
-            Write-DebugLog "Found $($tableMatches.Count) table rows"
-            
-            # Track current section for context
-            $currentSection = ""
-            $categoriesBuffer = ""
-            
-            foreach ($match in $tableMatches) {
-                $label = $match.Groups[1].Value -replace '<[^>]+>', '' -replace '&nbsp;', ' ' -replace '&amp;', '&' -replace '[\r\n\t]', ''
-                $value = $match.Groups[2].Value -replace '<[^>]+>', '' -replace '&nbsp;', ' ' -replace '&amp;', '&' -replace '[\r\n\t]', ''
-                
-                $label = $label.Trim()
-                $value = $value.Trim()
-                
-                if ($label -and $value) {
-                    switch -Regex ($label) {
-                        'Firm' { 
-                            $company | Add-Member -NotePropertyName 'Firm_' -NotePropertyValue $value -Force 
-                        }
-                        'ABN' { 
-                            $company | Add-Member -NotePropertyName 'ABN' -NotePropertyValue $value -Force 
-                        }
-                        'ACN' { 
-                            $company | Add-Member -NotePropertyName 'ACN' -NotePropertyValue $value -Force 
-                        }
-                        'Business Address|^Address' { 
-                            $company | Add-Member -NotePropertyName 'Address' -NotePropertyValue $value -Force 
-                        }
-                        'Tel.*No|Phone' { 
-                            $company | Add-Member -NotePropertyName 'Phone' -NotePropertyValue $value -Force 
-                        }
-                        'Mobile.*No' { 
-                            $company | Add-Member -NotePropertyName 'Mobile_No_' -NotePropertyValue $value -Force 
-                        }
-                        'Fax' { 
-                            $company | Add-Member -NotePropertyName 'Fax' -NotePropertyValue $value -Force 
-                        }
-                        'Email' { 
-                            $company | Add-Member -NotePropertyName 'Email' -NotePropertyValue $value -Force 
-                        }
-                        'Website|Web' { 
-                            $company | Add-Member -NotePropertyName 'Website' -NotePropertyValue $value -Force 
-                        }
-                        'Person|Contact' { 
-                            $company | Add-Member -NotePropertyName 'Contact' -NotePropertyValue $value -Force 
-                        }
-                        'Position' { 
-                            $company | Add-Member -NotePropertyName 'Position' -NotePropertyValue $value -Force 
-                        }
-                        
-                        # Prequalification categories - enhanced patterns
-                        'Maintenance and General Works.*Group' { 
-                            $currentSection = "Maintenance"
-                            $company | Add-Member -NotePropertyName 'Maintenance_and_General_Works__Group' -NotePropertyValue "Categories: $value" -Force 
-                        }
-                        'Road and Bridge Construction.*Group' { 
-                            $currentSection = "RoadBridge"
-                            $company | Add-Member -NotePropertyName 'Road_and_Bridge_Construction_Group' -NotePropertyValue "Categories: $value" -Force 
-                        }
-                        'Traffic Management.*Group' { 
-                            $currentSection = "Traffic"
-                            $company | Add-Member -NotePropertyName 'Traffic_Management_Services__contract__Groups' -NotePropertyValue "Categories: $value" -Force 
-                        }
-                        'Traffic Control Systems' { 
-                            $currentSection = "TrafficControl"
-                            $company | Add-Member -NotePropertyName 'Traffic_Control_Systems_Supply___Maintenance__a' -NotePropertyValue "Categories: $value" -Force 
-                        }
-                        
-                        # Category patterns within sections
-                        'Maintenance' {
-                            if ($currentSection -eq "Maintenance") {
-                                $existing = $company.Maintenance_and_General_Works__Group
-                                if ($existing) {
-                                    $company.Maintenance_and_General_Works__Group = "$existing, $value"
-                                } else {
-                                    $company | Add-Member -NotePropertyName 'Maintenance' -NotePropertyValue $value -Force
-                                }
-                            }
-                        }
-                        'Road Construction' {
-                            if ($currentSection -eq "RoadBridge") {
-                                $existing = $company.Road_and_Bridge_Construction_Group
-                                if ($existing) {
-                                    $company.Road_and_Bridge_Construction_Group = "$existing, Road Construction: $value"
-                                } else {
-                                    $company | Add-Member -NotePropertyName 'Road_Construction' -NotePropertyValue $value -Force
-                                }
-                            }
-                        }
-                        'Bridge Construction' {
-                            if ($currentSection -eq "RoadBridge") {
-                                $existing = $company.Road_and_Bridge_Construction_Group
-                                if ($existing) {
-                                    $company.Road_and_Bridge_Construction_Group = "$existing, Bridge Construction: $value"
-                                } else {
-                                    $company | Add-Member -NotePropertyName 'Bridge_Construction' -NotePropertyValue $value -Force
-                                }
-                            }
-                        }
-                        'Financial' {
-                            if ($currentSection -eq "RoadBridge") {
-                                $existing = $company.Road_and_Bridge_Construction_Group
-                                if ($existing) {
-                                    $company.Road_and_Bridge_Construction_Group = "$existing, Financial: $value"
-                                } else {
-                                    $company | Add-Member -NotePropertyName 'Financial_Level' -NotePropertyValue $value -Force
-                                }
-                            }
-                        }
-                        
-                        'Prequalif.*Categor|^Categor' { 
-                            $company | Add-Member -NotePropertyName 'PrequalificationCategories' -NotePropertyValue $value -Force 
-                        }
-                        'Expir' { 
-                            $company | Add-Member -NotePropertyName 'ExpiryDate' -NotePropertyValue $value -Force 
-                        }
-                        default { 
-                            $fieldName = $label -replace '[^\w]', '_'
-                            if ($fieldName) {
-                                $company | Add-Member -NotePropertyName $fieldName -NotePropertyValue $value -Force
+            # Clean HTML for consistent parsing
+            $cleanHtml = $bodyHtml -replace '&nbsp;', ' ' -replace '&amp;', '&' -replace '&quot;', '"' -replace '&#160;', ' '
+
+            Write-DebugLog "Parsing HTML (Length: $($cleanHtml.Length))"
+
+            # ═══════════════════════════════════════════════════════════════════
+            # SECTION 1: Parse Company Info Table (border="0")
+            # ═══════════════════════════════════════════════════════════════════
+
+            # Extract Firm Name - look for bgcolor="#D2D2D2" header row
+            if ($cleanHtml -match 'Firm[:\s]*</font></b></td><td[^>]*bgcolor="#D2D2D2"[^>]*>.*?<font[^>]*>([^<]+)</font>') {
+                $company | Add-Member -NotePropertyName 'Firm_' -NotePropertyValue $matches[1].Trim() -Force
+            }
+
+            # Trading Name
+            if ($cleanHtml -match 'Trading\s*Name[:\s]*</font></b></td><td[^>]*>.*?<font[^>]*color="#000080"[^>]*>([^<]*)</font>') {
+                $tradingName = $matches[1].Trim()
+                if ($tradingName) {
+                    $company | Add-Member -NotePropertyName 'TradingName' -NotePropertyValue $tradingName -Force
+                }
+            }
+
+            # Phone/Tel No
+            if ($cleanHtml -match 'Tel\s*No[:\s]*</font></td><td[^>]*>.*?<font[^>]*>([^<]+)</font>') {
+                $company | Add-Member -NotePropertyName 'Phone' -NotePropertyValue $matches[1].Trim() -Force
+            }
+
+            # Fax No
+            if ($cleanHtml -match 'Fax\s*No[:\s]*</font></td><td[^>]*>.*?<font[^>]*>([^<]+)</font>') {
+                $company | Add-Member -NotePropertyName 'Fax' -NotePropertyValue $matches[1].Trim() -Force
+            }
+
+            # Business Address - multiline
+            if ($cleanHtml -match 'Business\s*Ad.*?dress[:\s]*</font></b></td><td[^>]*>.*?<font[^>]*>([\s\S]*?)</font>\s*&?n?b?s?p?') {
+                $address = $matches[1] -replace '<br\s*/?>', ', ' -replace '<[^>]+>', '' -replace '\s+', ' '
+                $company | Add-Member -NotePropertyName 'Address' -NotePropertyValue $address.Trim() -Force
+            }
+
+            # Contact Person
+            if ($cleanHtml -match 'Person[:\s]*</font></td><td[^>]*>([\s\S]*?)</td>') {
+                $person = $matches[1] -replace '<[^>]+>', ' ' -replace '\s+', ' '
+                $company | Add-Member -NotePropertyName 'Contact' -NotePropertyValue $person.Trim() -Force
+            }
+
+            # Position
+            if ($cleanHtml -match 'Position[:\s]*</font></td><td[^>]*>.*?<font[^>]*>([^<]+)</font>') {
+                $company | Add-Member -NotePropertyName 'Position' -NotePropertyValue $matches[1].Trim() -Force
+            }
+
+            # Mobile No
+            if ($cleanHtml -match 'Mobile\s*No[:\s]*</font></td><td[^>]*>.*?<font[^>]*>([^<]+)</font>') {
+                $company | Add-Member -NotePropertyName 'Mobile_No_' -NotePropertyValue $matches[1].Trim() -Force
+            }
+
+            # Postal Address
+            if ($cleanHtml -match 'Postal\s*Address[:\s]*</font></b></td><td[^>]*[^>]*>([\s\S]*?)</td>') {
+                $postal = $matches[1] -replace '<br\s*/?>', ', ' -replace '<[^>]+>', '' -replace '\s+', ' '
+                $company | Add-Member -NotePropertyName 'PostalAddress' -NotePropertyValue $postal.Trim() -Force
+            }
+
+            # Email Address - handle Cloudflare email protection
+            if ($cleanHtml -match 'Email\s*Address[:\s]*</font></b></td><td[^>]*>([\s\S]*?)</td>') {
+                $emailBlock = $matches[1]
+                if ($emailBlock -match 'data-cfemail="([^"]+)"') {
+                    # Cloudflare protected - decode it
+                    $encoded = $matches[1]
+                    $key = [Convert]::ToByte($encoded.Substring(0,2), 16)
+                    $decoded = ""
+                    for ($i = 2; $i -lt $encoded.Length; $i += 2) {
+                        $byte = [Convert]::ToByte($encoded.Substring($i,2), 16)
+                        $decoded += [char]($byte -bxor $key)
+                    }
+                    $company | Add-Member -NotePropertyName 'Email' -NotePropertyValue $decoded -Force
+                }
+                elseif ($emailBlock -match 'mailto:([^"]+)') {
+                    $company | Add-Member -NotePropertyName 'Email' -NotePropertyValue $matches[1] -Force
+                }
+                elseif ($emailBlock -match '([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})') {
+                    $company | Add-Member -NotePropertyName 'Email' -NotePropertyValue $matches[1] -Force
+                }
+            }
+
+            # Website
+            if ($cleanHtml -match 'Website[:\s]*</font></b></td><td[^>]*>([\s\S]*?)</td>') {
+                $websiteBlock = $matches[1]
+                if ($websiteBlock -match 'href="([^"]+)"') {
+                    $company | Add-Member -NotePropertyName 'Website' -NotePropertyValue $matches[1] -Force
+                }
+                else {
+                    $website = $websiteBlock -replace '<[^>]+>', ''
+                    if ($website.Trim()) {
+                        $company | Add-Member -NotePropertyName 'Website' -NotePropertyValue $website.Trim() -Force
+                    }
+                }
+            }
+
+            # ABN/ACN if present
+            if ($cleanHtml -match 'ABN[:\s]*</font></b></td><td[^>]*>.*?<font[^>]*>([^<]+)</font>') {
+                $company | Add-Member -NotePropertyName 'ABN' -NotePropertyValue $matches[1].Trim() -Force
+            }
+            if ($cleanHtml -match 'ACN[:\s]*</font></b></td><td[^>]*>.*?<font[^>]*>([^<]+)</font>') {
+                $company | Add-Member -NotePropertyName 'ACN' -NotePropertyValue $matches[1].Trim() -Force
+            }
+
+            # Conditions relating to prequalification
+            if ($cleanHtml -match 'Conditions\s*relating\s*to\s*prequalification[:\s]*</font></b></td><td[^>]*>.*?<font[^>]*>([^<]*)</font>') {
+                $conditions = $matches[1].Trim()
+                if ($conditions) {
+                    $company | Add-Member -NotePropertyName 'Conditions' -NotePropertyValue $conditions -Force
+                }
+            }
+
+            # ═══════════════════════════════════════════════════════════════════
+            # SECTION 2: Parse Prequalification Tables (border="1")
+            # Each table has: Header row (group name) → Categories/Levels row → Data rows
+            # ═══════════════════════════════════════════════════════════════════
+
+            # Find all tables with border="1"
+            $prequalTablePattern = '<table\s+border="1">([\s\S]*?)</table>'
+            $prequalTables = [regex]::Matches($cleanHtml, $prequalTablePattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+
+            Write-DebugLog "Found $($prequalTables.Count) prequalification tables"
+
+            $allPrequalCategories = @()
+
+            foreach ($table in $prequalTables) {
+                $tableHtml = $table.Groups[1].Value
+
+                # Extract group name from first row (has colspan="2" and bgcolor="#D2D2D2")
+                $groupName = ""
+                if ($tableHtml -match '<tr[^>]*>.*?<td[^>]*bgcolor="#D2D2D2"[^>]*colspan="2"[^>]*>.*?<font[^>]*>([^<]+)</font>') {
+                    $groupName = $matches[1].Trim()
+                }
+                elseif ($tableHtml -match '<tr[^>]*>.*?<td[^>]*colspan="2"[^>]*bgcolor="#D2D2D2"[^>]*>.*?<font[^>]*>([^<]+)</font>') {
+                    $groupName = $matches[1].Trim()
+                }
+
+                if (-not $groupName) {
+                    Write-DebugLog "Could not find group name in table, skipping"
+                    continue
+                }
+
+                Write-DebugLog "Processing prequalification group: $groupName"
+
+                # Create clean field name from group name
+                $fieldName = $groupName -replace '[^\w\s]', '' -replace '\s+', '_'
+
+                # Find all data rows (skip header rows)
+                # Data rows have 2 cells: Category name and Level(s)
+                $rowPattern = '<tr[^>]*valign="top"[^>]*>\s*<td[^>]*width="263"[^>]*>\s*<font[^>]*>([^<]+)</font>\s*</td>\s*<td[^>]*width="340"[^>]*>\s*<font[^>]*>([\s\S]*?)</font>\s*</td>\s*</tr>'
+                $dataRows = [regex]::Matches($tableHtml, $rowPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+
+                $categoryEntries = @()
+
+                foreach ($row in $dataRows) {
+                    $categoryName = $row.Groups[1].Value -replace '<[^>]+>', '' -replace '\s+', ' '
+                    $categoryName = $categoryName.Trim()
+
+                    $levels = $row.Groups[2].Value -replace '<br\s*/?>', ', ' -replace '<[^>]+>', '' -replace '\s+', ' '
+                    $levels = $levels.Trim()
+
+                    # Skip the header row (Categories: / Levels:)
+                    if ($categoryName -match '^Categories' -or $categoryName -match '^Names') {
+                        continue
+                    }
+
+                    if ($categoryName -and $levels) {
+                        $categoryEntries += "$categoryName`: $levels"
+
+                        # Also extract category codes for the flat categories list
+                        $codePatterns = @(
+                            'M\d+(?:-[A-Z]+)?',
+                            'R\d+',
+                            'B\d+',
+                            'F\d+\+?',
+                            'SCTV|SSLC|STCE\d*|STS\d*|SVDL|SOED',
+                            '[A-Z]+-[A-Z]+',
+                            '\b[A-Z]{2,4}\d*\b'
+                        )
+                        foreach ($codePattern in $codePatterns) {
+                            $codeMatches = [regex]::Matches($levels, $codePattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                            foreach ($code in $codeMatches) {
+                                $allPrequalCategories += $code.Value.ToUpper()
                             }
                         }
                     }
                 }
-            }
-            
-            # Pattern 2: Look for category codes directly in the HTML
-            $categoryPatterns = @(
-                'M\d+(?:-[A-Z]+)?',      # M1, M2-BW, M2-PW
-                'R\d+',                  # R1, R2, R3
-                'B\d+',                  # B1, B2, B3
-                'F\d+\+?',              # F150, F150+
-                'S[A-Z]+\d*',           # SCTV, STCE1, STS2
-                'SCTV|SSLC|STCE|STS|SVDL|SOED'  # Traffic codes
-            )
-            
-            $allCategories = @()
-            foreach ($pattern in $categoryPatterns) {
-                $catMatches = [regex]::Matches($bodyHtml, "\b($pattern)\b", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-                foreach ($match in $catMatches) {
-                    $allCategories += $match.Groups[1].Value
+
+                # Store the prequalification group data
+                if ($categoryEntries.Count -gt 0) {
+                    $groupValue = $categoryEntries -join "; "
+                    $company | Add-Member -NotePropertyName $fieldName -NotePropertyValue $groupValue -Force
+                    Write-DebugLog "Added $fieldName with $($categoryEntries.Count) entries"
                 }
             }
-            
-            if ($allCategories.Count -gt 0) {
-                $uniqueCategories = $allCategories | Select-Object -Unique | Sort-Object
-                $catString = "Categories: " + ($uniqueCategories -join ', ')
-                
-                # Add to PrequalificationCategories if not already present
-                if (-not $company.PrequalificationCategories) {
-                    $company | Add-Member -NotePropertyName 'PrequalificationCategories' -NotePropertyValue $catString -Force
-                } else {
-                    # Merge with existing
-                    $existing = $company.PrequalificationCategories
-                    if ($existing -notmatch [regex]::Escape($catString)) {
-                        $company.PrequalificationCategories = "$existing; $catString"
+
+            # ═══════════════════════════════════════════════════════════════════
+            # SECTION 3: Create unified PrequalificationCategories field
+            # ═══════════════════════════════════════════════════════════════════
+
+            if ($allPrequalCategories.Count -gt 0) {
+                $uniqueCategories = $allPrequalCategories | Select-Object -Unique | Sort-Object
+                $company | Add-Member -NotePropertyName 'PrequalificationCategories' -NotePropertyValue ($uniqueCategories -join ', ') -Force
+            }
+
+            # ═══════════════════════════════════════════════════════════════════
+            # SECTION 4: Fallback - extract any category codes from full HTML
+            # ═══════════════════════════════════════════════════════════════════
+
+            if (-not $company.PrequalificationCategories) {
+                $fallbackPatterns = @(
+                    '\bM\d+(?:-[A-Z]+)?\b',
+                    '\bR\d+\b',
+                    '\bB\d+\b',
+                    '\bF\d+\+?\b',
+                    '\b(SCTV|SSLC|STCE\d*|STS\d*|SVDL|SOED)\b'
+                )
+
+                $fallbackCats = @()
+                foreach ($pattern in $fallbackPatterns) {
+                    $matches = [regex]::Matches($cleanHtml, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                    foreach ($m in $matches) {
+                        $fallbackCats += $m.Value.ToUpper()
                     }
                 }
-            }
-            
-            # Pattern 3: Alternative colon pattern
-            $colonPattern = '<b>([^<:]+):</b>([^<]+)'
-            $colonMatches = [regex]::Matches($bodyHtml, $colonPattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-            
-            foreach ($match in $colonMatches) {
-                $label = $match.Groups[1].Value.Trim()
-                $value = $match.Groups[2].Value.Trim()
-                
-                if ($label -and $value -and $label -notmatch 'script|style') {
-                    $fieldName = $label -replace '[^\w]', '_'
-                    if (-not $company.PSObject.Properties[$fieldName]) {
-                        $company | Add-Member -NotePropertyName $fieldName -NotePropertyValue $value -Force
-                    }
+
+                if ($fallbackCats.Count -gt 0) {
+                    $uniqueFallback = $fallbackCats | Select-Object -Unique | Sort-Object
+                    $company | Add-Member -NotePropertyName 'PrequalificationCategories' -NotePropertyValue ($uniqueFallback -join ', ') -Force
                 }
             }
         }
-        
+
         Write-DebugLog "Company object has $($company.PSObject.Properties.Count) properties"
         return $company
     }
     catch {
         Write-Host "    ✗ Error: $_" -ForegroundColor Red
         Write-DebugLog "ERROR: $_"
-        
+
         return [PSCustomObject]@{
             Name = $CompanyName
             Url = $CompanyUrl
